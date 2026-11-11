@@ -1,0 +1,832 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0d1013"><meta name="apple-mobile-web-app-capable" content="yes">
+<style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style>
+</head><body>
+<title>Strata Time Lens</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Manrope:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: a full-bleed lens (live camera or simulated scene) with a glass HUD on top,
+   AR place tags floating at the horizon, and a "strata" time dial docked at the bottom.
+   Single dark look on purpose: it is a camera viewfinder. */
+:root{
+  --ink:#0d1013;
+  --glass:rgba(13,16,19,.74);
+  --glass-hi:rgba(28,33,38,.92);
+  --line:rgba(236,231,218,.16);
+  --paper:#ece7da;
+  --muted:#a9a497;
+  --brass:#d9a55b;
+  --alert:#e5735b;
+  --era:#d9a55b;
+  --f-display:"Instrument Serif", Georgia, "Times New Roman", serif;
+  --f-body:"Manrope", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --f-mono:"JetBrains Mono", ui-monospace, Menlo, Consolas, monospace;
+  --safe-t:env(safe-area-inset-top,0px);
+  --safe-b:env(safe-area-inset-bottom,0px);
+  --safe-l:env(safe-area-inset-left,0px);
+  --safe-r:env(safe-area-inset-right,0px);
+  color-scheme:dark;
+}
+html,body{height:100%}
+body{background:var(--ink);color:var(--paper);font-family:var(--f-body);font-size:15px;line-height:1.45;overflow:hidden;-webkit-tap-highlight-color:transparent}
+button{font:inherit;color:inherit;cursor:pointer}
+button:focus-visible,a:focus-visible,input:focus-visible{outline:2px solid var(--brass);outline-offset:2px}
+.mono{font-family:var(--f-mono);font-variant-numeric:tabular-nums;letter-spacing:.02em}
+
+#app{position:fixed;inset:0;overflow:hidden;background:var(--ink)}
+#lens{position:absolute;inset:0;touch-action:none;cursor:grab}
+#lens:active{cursor:grabbing}
+#video,#scene{position:absolute;inset:0;width:100%;height:100%}
+#video{object-fit:cover;transition:filter .6s ease}
+#tint{position:absolute;inset:0;pointer-events:none;mix-blend-mode:color;opacity:0;transition:opacity .6s ease,background .6s ease}
+#vignette{position:absolute;inset:0;pointer-events:none;background:radial-gradient(120% 80% at 50% 45%,transparent 55%,rgba(0,0,0,.55))}
+
+/* AR tags */
+#labels{position:absolute;inset:0;pointer-events:none}
+.tag{position:absolute;left:0;top:0;pointer-events:auto;display:grid;gap:1px;text-align:left;min-width:0;max-width:200px;
+  padding:7px 11px 8px;border-radius:10px;border:1px solid color-mix(in srgb,var(--c) 55%,transparent);
+  background:var(--glass);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);
+  box-shadow:0 6px 18px rgba(0,0,0,.35);will-change:transform;transform-origin:50% 100%}
+.tag::after{content:"";position:absolute;left:50%;top:100%;width:1px;height:22px;background:linear-gradient(var(--c),transparent)}
+.tag::before{content:"";position:absolute;left:calc(50% - 3px);top:calc(100% + 20px);width:7px;height:7px;border-radius:50%;background:var(--c);box-shadow:0 0 0 3px rgba(0,0,0,.35)}
+.tag-yr{font-family:var(--f-mono);font-size:10.5px;letter-spacing:.08em;color:var(--c);text-transform:uppercase}
+.tag-name{font-weight:600;font-size:13.5px;line-height:1.2;overflow-wrap:anywhere}
+.tag-d{font-family:var(--f-mono);font-size:10.5px;color:var(--muted)}
+.edge{position:absolute;top:46%;font-family:var(--f-mono);font-size:11px;color:var(--paper);background:var(--glass);border:1px solid var(--line);
+  padding:6px 8px;border-radius:999px;pointer-events:none}
+#edgeL{left:calc(10px + var(--safe-l))}
+#edgeR{right:calc(10px + var(--safe-r))}
+
+/* Top HUD */
+#hud{position:absolute;left:0;right:0;top:0;padding:calc(10px + var(--safe-t)) calc(12px + var(--safe-r)) 0 calc(12px + var(--safe-l));
+  display:grid;grid-template-columns:1fr auto;gap:10px;align-items:start;pointer-events:none}
+#hud > *{pointer-events:auto}
+.plate{background:var(--glass);border:1px solid var(--line);border-radius:14px;padding:9px 12px;backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);min-width:0}
+#place-name{font-family:var(--f-display);font-size:22px;line-height:1.05;text-wrap:balance;overflow-wrap:anywhere}
+#place-sub{font-size:11.5px;color:var(--muted);margin-top:3px}
+.chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
+.chip{font-family:var(--f-mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;padding:2px 7px;border-radius:999px;border:1px solid var(--line);color:var(--muted)}
+.chip.live{color:#9fe0a8;border-color:rgba(159,224,168,.4)}
+.chip.demo{color:var(--brass);border-color:rgba(217,165,91,.45)}
+#radar{width:88px;height:88px;display:block}
+#tape{position:absolute;left:0;right:0;top:calc(var(--safe-t) + 122px);height:26px;width:100%;pointer-events:none}
+
+/* Beneath-you card */
+#ground{position:absolute;left:calc(12px + var(--safe-l));right:calc(12px + var(--safe-r));bottom:calc(var(--dock-h,250px) + 10px);
+  display:grid;grid-template-columns:44px 1fr;gap:10px;align-items:center;cursor:pointer;text-align:left}
+#ground .swatch{width:44px;height:44px;border-radius:8px;background:
+  repeating-linear-gradient(0deg,rgba(0,0,0,.18) 0 3px,transparent 3px 9px),var(--gc,#99c2b5)}
+#ground b{display:block;font-size:13.5px}
+#ground span{font-size:12px;color:var(--muted)}
+
+/* Dock with time dial */
+#dock{position:absolute;left:0;right:0;bottom:0;padding:0 calc(12px + var(--safe-r)) calc(12px + var(--safe-b)) calc(12px + var(--safe-l));display:grid;gap:8px}
+#dial{display:flex;gap:0;overflow-x:auto;scrollbar-width:none;border-radius:12px;border:1px solid var(--line);background:var(--glass);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px)}
+#dial::-webkit-scrollbar{display:none}
+.era{flex:1 0 auto;min-width:86px;border:0;background:transparent;padding:8px 10px 9px;text-align:left;display:grid;gap:2px;position:relative;border-right:1px solid var(--line)}
+.era:last-child{border-right:0}
+.era::before{content:"";position:absolute;left:0;right:0;top:0;height:3px;background:var(--c);opacity:.45}
+.era b{font-size:12.5px;font-weight:600;white-space:nowrap}
+.era small{font-family:var(--f-mono);font-size:9.5px;color:var(--muted);white-space:nowrap}
+.era[aria-pressed="true"]{background:color-mix(in srgb,var(--c) 22%,transparent)}
+.era[aria-pressed="true"]::before{opacity:1;height:4px}
+#story{background:var(--glass-hi);border:1px solid var(--line);border-radius:16px;padding:12px 14px 12px;display:grid;gap:8px}
+#story-head{display:flex;align-items:baseline;justify-content:space-between;gap:10px}
+#story-title{font-family:var(--f-display);font-size:24px;line-height:1.05;color:var(--era)}
+#story-span{font-family:var(--f-mono);font-size:10.5px;color:var(--muted);white-space:nowrap}
+#story-text{font-size:14px;color:var(--paper);max-width:65ch;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;cursor:pointer}
+#story-text.open{-webkit-line-clamp:unset;display:block;max-height:34vh;overflow:auto}
+.row{display:flex;gap:8px;flex-wrap:wrap}
+.btn{border:1px solid var(--line);background:rgba(236,231,218,.06);border-radius:999px;padding:7px 13px;font-size:13px;font-weight:600;display:inline-flex;align-items:center;gap:6px}
+.btn:hover{background:rgba(236,231,218,.12)}
+.btn.primary{background:var(--brass);color:#1b1408;border-color:transparent}
+.btn.primary:hover{background:#e6b56c}
+.btn[disabled]{opacity:.45;cursor:not-allowed}
+
+/* Sheet */
+#sheet{position:absolute;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:flex-end;justify-content:center;z-index:20}
+#sheet-card{width:min(640px,100%);max-height:86%;overflow:auto;background:var(--glass-hi);border:1px solid var(--line);border-bottom:0;border-radius:20px 20px 0 0;
+  padding:18px max(18px,calc(18px + var(--safe-r))) calc(18px + var(--safe-b)) max(18px,calc(18px + var(--safe-l)));display:grid;gap:12px;backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px)}
+#sheet-card h2{margin:0;font-family:var(--f-display);font-weight:400;font-size:34px;line-height:1;text-wrap:balance}
+.meta{display:flex;gap:10px;flex-wrap:wrap;align-items:center;font-size:12px;color:var(--muted)}
+.era-pill{font-family:var(--f-mono);font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;padding:3px 8px;border-radius:999px;background:color-mix(in srgb,var(--c) 22%,transparent);color:var(--c);border:1px solid color-mix(in srgb,var(--c) 50%,transparent)}
+#sheet-img{width:100%;max-height:220px;object-fit:cover;border-radius:12px}
+#sheet-strata{height:56px;border-radius:12px;background:var(--sb)}
+#sheet-story{margin:0;max-width:65ch;font-size:15px}
+.ask{display:grid;gap:8px;border-top:1px solid var(--line);padding-top:12px}
+.ask label{font-size:12px;color:var(--muted)}
+.ask-row{display:flex;gap:8px}
+.ask input{flex:1;min-width:0;background:rgba(0,0,0,.3);border:1px solid var(--line);border-radius:10px;padding:9px 11px;color:var(--paper);font:inherit}
+.answer{font-size:14px;color:var(--paper);white-space:pre-wrap;max-width:65ch}
+.fine{font-size:11.5px;color:var(--muted)}
+.fine a{color:var(--brass)}
+
+/* Start */
+#start{position:absolute;inset:0;z-index:30;overflow:auto;background:
+  linear-gradient(180deg,rgba(13,16,19,.25),rgba(13,16,19,.96) 62%),
+  repeating-linear-gradient(180deg,#99c2b5 0 14px,#7fa695 14px 22px,#d9a55b 22px 30px,#b5654a 30px 40px,#8c6a9e 40px 46px,#c9dde6 46px 58px,#3f6f78 58px 76px);
+  padding:calc(28px + var(--safe-t)) max(18px,calc(18px + var(--safe-r))) calc(28px + var(--safe-b)) max(18px,calc(18px + var(--safe-l)))}
+.start-inner{max-width:560px;margin:0 auto;display:grid;gap:18px;padding-top:18vh}
+.kicker{font-family:var(--f-mono);font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--brass)}
+#start h1{margin:0;font-family:var(--f-display);font-weight:400;font-size:clamp(56px,16vw,96px);line-height:.9;letter-spacing:-.01em}
+#start h1 i{color:var(--brass)}
+.lede{margin:0;font-size:16px;color:var(--paper);max-width:46ch}
+.opt{display:grid;gap:4px;text-align:left;padding:14px 16px;border-radius:14px;border:1px solid var(--line);background:rgba(13,16,19,.7)}
+.opt:hover{border-color:rgba(217,165,91,.6)}
+.opt b{font-size:15.5px}
+.opt span{font-size:12.5px;color:var(--muted)}
+.opt.primary{border-color:rgba(217,165,91,.65);background:rgba(217,165,91,.12)}
+.group-label{font-family:var(--f-mono);font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin-top:4px}
+.stack{display:grid;gap:8px}
+
+#toast{position:absolute;left:50%;top:calc(var(--safe-t) + 156px);transform:translateX(-50%);z-index:40;max-width:min(92vw,460px);
+  background:var(--glass-hi);border:1px solid var(--line);border-radius:12px;padding:9px 14px;font-size:13px;text-align:center}
+#busy{position:absolute;inset:0;z-index:35;display:grid;place-items:center;background:rgba(13,16,19,.6)}
+#busy div{background:var(--glass-hi);border:1px solid var(--line);border-radius:14px;padding:14px 18px;font-size:14px;display:flex;gap:10px;align-items:center}
+.spin{width:14px;height:14px;border-radius:50%;border:2px solid var(--line);border-top-color:var(--brass);animation:spin 1s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){.spin{animation:none}#video,#tint{transition:none}}
+@media (min-width:760px){
+  #dock{left:50%;right:auto;transform:translateX(-50%);width:min(720px,calc(100% - 24px));padding-left:0;padding-right:0}
+  #ground{left:50%;right:auto;transform:translateX(-50%);width:min(720px,calc(100% - 24px))}
+}
+</style>
+
+<div id="app">
+  <div id="lens" aria-label="Camera view. Drag left or right to look around.">
+    <canvas id="scene"></canvas>
+    <video id="video" playsinline muted autoplay hidden></video>
+    <div id="tint"></div>
+    <div id="vignette"></div>
+  </div>
+  <canvas id="tape" aria-hidden="true"></canvas>
+  <div id="labels"></div>
+  <div class="edge" id="edgeL" hidden></div>
+  <div class="edge" id="edgeR" hidden></div>
+
+  <header id="hud">
+    <div class="plate">
+      <div id="place-name">Strata</div>
+      <div id="place-sub" class="mono">—</div>
+      <div class="chips"><span id="mode-chip" class="chip demo">Demo</span><span id="heading-chip" class="chip mono">0° N</span></div>
+    </div>
+    <div class="plate" style="padding:6px"><canvas id="radar" width="176" height="176" aria-label="Radar of nearby places"></canvas></div>
+  </header>
+
+  <button id="ground" class="plate" hidden>
+    <div class="swatch"></div>
+    <div><b id="ground-name"></b><span id="ground-text"></span></div>
+  </button>
+
+  <section id="dock">
+    <nav id="dial" aria-label="Travel through time"></nav>
+    <div id="story">
+      <div id="story-head"><div id="story-title">Today</div><div id="story-span" class="mono"></div></div>
+      <div id="story-text" title="Tap to expand"></div>
+      <div class="row">
+        <button class="btn" id="narrate-era">▶ Narrate</button>
+        <button class="btn" id="ask-era" hidden>Ask Claude about this era</button>
+        <button class="btn" id="change-place">Change place</button>
+      </div>
+    </div>
+  </section>
+
+  <div id="sheet" hidden>
+    <article id="sheet-card" role="dialog" aria-modal="true" aria-labelledby="sheet-title">
+      <div class="meta"><span class="era-pill" id="sheet-era"></span><span class="mono" id="sheet-meta"></span></div>
+      <h2 id="sheet-title"></h2>
+      <img id="sheet-img" alt="" hidden>
+      <div id="sheet-strata" hidden></div>
+      <p id="sheet-story"></p>
+      <div class="row">
+        <button class="btn" id="sheet-narrate">▶ Narrate</button>
+        <a class="btn" id="sheet-link" target="_blank" rel="noopener" hidden>Read more ↗</a>
+        <button class="btn" id="sheet-close">Close</button>
+      </div>
+      <div class="ask" id="ask-box" hidden>
+        <label for="ask-input" id="ask-label">Ask Claude a question about this place</label>
+        <div class="ask-row"><input id="ask-input" placeholder="What did this look like in 1900?" autocomplete="off"><button class="btn primary" id="ask-go">Ask</button></div>
+        <div class="answer" id="ask-answer"></div>
+      </div>
+      <div class="fine" id="sheet-source"></div>
+    </article>
+  </div>
+
+  <div id="start">
+    <div class="start-inner">
+      <div class="kicker">A pocket museum of the ground you stand on</div>
+      <h1>Strata <i>Time&nbsp;Lens</i></h1>
+      <p class="lede">Point your phone at a place. See what's there now, then scrub back through the 1800s, the Ice Age and the ancient seas to see what came before.</p>
+      <div class="stack">
+        <button class="opt primary" id="go-live"><b>Start the live lens</b><span id="live-note">Uses your camera, GPS and compass. Nearby history comes from Wikipedia, OpenStreetMap and Macrostrat geology.</span></button>
+      </div>
+      <div class="group-label">Or try a demo place</div>
+      <div class="stack" id="demo-list"></div>
+      <div class="stack" id="any-place" hidden>
+        <div class="group-label">Any place on Earth, written by Claude</div>
+        <form class="ask-row" id="any-form">
+          <input id="any-input" placeholder="e.g. Pike Place Market, Seattle" autocomplete="off" aria-label="Place name">
+          <button class="btn primary" type="submit">Go</button>
+        </form>
+      </div>
+      <p class="fine">Prototype. Demo content is hand-written; Claude-written places are AI-generated and may contain mistakes.</p>
+    </div>
+  </div>
+
+  <div id="toast" hidden></div>
+  <div id="busy" hidden><div><span class="spin"></span><span id="busy-text">Loading…</span></div></div>
+</div>
+
+<script>
+(() => {
+"use strict";
+// ---------- Eras: the time dial ----------
+const ERAS = [
+  { id:"now",      label:"Today",            span:"Now",                 color:"#ece7da" },
+  { id:"c20",      label:"20th century",     span:"1900–1999",           color:"#f2c14e" },
+  { id:"c19",      label:"1800s",            span:"1800–1899",           color:"#d98e4a" },
+  { id:"colonial", label:"Empires & settlers", span:"1500–1799",         color:"#c9765a" },
+  { id:"native",   label:"Indigenous lands", span:"before contact",      color:"#b08bc4" },
+  { id:"ice",      label:"Ice Age",          span:"2.6 Myr – 11,700 yr", color:"#a9d8ea" },
+  { id:"deep",     label:"Deep time",        span:"millions of years",   color:"#99c2b5" },
+];
+const ERA = Object.fromEntries(ERAS.map(e => [e.id, e]));
+const eraColor = id => (ERA[id] || ERA.now).color;
+
+// ---------- Demo places (hand-written) ----------
+const DEMOS = [
+{
+  key:"kc", name:"Country Club Plaza", sub:"Kansas City, Missouri", blurb:"A 1923 shopping center, the ancestor of the strip mall",
+  lat:39.0418, lon:-94.5918,
+  here:{ title:"Country Club Plaza", text:"You're standing in one of the first shopping districts in the U.S. designed around the car. Developer J.C. Nichols opened it in 1923 on low ground along Brush Creek and styled it after Seville, Spain. Every strip mall you've parked at descends from places like this." },
+  eras:{
+    now:{ text:"Shops, restaurants and apartments sit over parking garages. Every winter since 1925, strings of lights have outlined the Plaza's rooflines, starting with a single string hung over one doorway." },
+    c20:{ text:"Nichols built the Plaza with parking lots in mind when most stores still faced streetcar lines. On September 12, 1977, Brush Creek flooded after a record rainfall; 25 people died and the Plaza filled with water. The creek was later rebuilt as a concrete channel with a walkway." },
+    c19:{ text:"A mile north, the town of Westport outfitted wagons for the Santa Fe, Oregon and California Trails from the 1830s. In October 1864 the Battle of Westport, one of the largest Civil War battles west of the Mississippi, was fought across the fields just south of here." },
+    colonial:{ span:"1700–1821", text:"France claimed this land, then Spain, then France again, before selling it to the United States in the 1803 Louisiana Purchase. Lewis and Clark camped where the Kansas River meets the Missouri, about six miles north, in June 1804." },
+    native:{ text:"The Kansa (Kaw) and Osage peoples lived, farmed and hunted along these rivers. Through treaties in 1808 and 1825, both nations ceded most of their land in what is now Missouri and Kansas and were moved west." },
+    ice:{ text:"Ice sheets pushed south more than once and stopped close to the Missouri River. Wind blew fine glacial silt (loess) out of the river valleys and piled it into the thick bluffs that still line them." },
+    deep:{ span:"~300 million years ago", text:"In the Late Pennsylvanian, a warm, shallow sea covered this spot. The limestone and shale under the Plaza, called the Kansas City Group, formed from its mud and shells. Local limestone is full of fossil crinoids and brachiopods." },
+  },
+  ground:{
+    ice:{ name:"Glacial loess", text:"Wind-blown silt from melting ice sheets", color:"#d8d2b4", story:"Loess is silt ground fine by glaciers, washed out by meltwater and then lifted by wind. Deposits along the Missouri River valley are tens of feet thick in places." },
+    deep:{ name:"Kansas City Group limestone", text:"Late Pennsylvanian, 307–299 million years old", color:"#bfd0c3", story:"Alternating beds of limestone and shale with minor coal and sandstone. Each limestone layer records a time when the sea was deeper and clearer; each shale, a time when mud washed in from the land." },
+  },
+  pois:[
+    { name:"Plaza Lights", lat:39.0412, lon:-94.5928, era:"now", year:"1925", fact:"A holiday tradition for a century.", story:"The lighting began in 1925, when a Plaza employee hung a single string of colored bulbs over a doorway. Today the lights trace the outlines of nearly every building, and the switch-on night is one of the city's biggest gatherings." },
+    { name:"Giralda Tower", lat:39.0413, lon:-94.5900, era:"c20", year:"1967", fact:"A half-scale copy of Seville's bell tower.", story:"This replica of the Giralda in Seville, Spain was dedicated in 1967, the year Seville became Kansas City's sister city. The Plaza's tile roofs, ironwork and towers all borrow from Spanish architecture." },
+    { name:"J.C. Nichols Memorial Fountain", lat:39.0428, lon:-94.5880, era:"c20", year:"1960", fact:"Horsemen sculpted in Paris in 1910.", story:"The four horsemen were made in 1910 by French sculptor Henri Gréber for a Long Island mansion. Decades later they were brought to Kansas City and set into this fountain in 1960. Kansas City calls itself the City of Fountains." },
+    { name:"Brush Creek", lat:39.0403, lon:-94.5875, era:"c20", year:"1977", fact:"The creek that flooded the Plaza.", story:"On September 12, 1977, heavy storms dumped more than ten inches of rain on the area. Brush Creek rose over its banks and swept through the Plaza; 25 people died across the region. Flood-control work in the 1990s turned the creek into the channel you see now." },
+    { name:"Nelson-Atkins Museum of Art", lat:39.0451, lon:-94.5810, era:"c20", year:"1933", fact:"Paid for by a newspaper founder's estate.", story:"The museum opened in 1933, funded by the estate of Kansas City Star founder William Rockhill Nelson. The giant shuttlecocks on its lawn, added in 1994, are by Claes Oldenburg and Coosje van Bruggen; the lawn is the 'net' between them." },
+    { name:"Westport", lat:39.0531, lon:-94.5921, era:"c19", year:"1833", fact:"Last stop before the trails west.", story:"John Calvin McCoy founded Westport in 1833 as a place for travelers to buy wagons, oxen and supplies before heading down the Santa Fe Trail. Its river landing on the Missouri grew into Kansas City, which eventually swallowed Westport whole." },
+    { name:"Battle of Westport (Loose Park)", lat:39.0337, lon:-94.5935, era:"c19", year:"1864", fact:"About 30,000 soldiers fought here.", story:"On October 23, 1864, Union forces defeated Confederate General Sterling Price's raid into Missouri. Part of the fighting crossed the ground that is now Loose Park, where markers and a cannon emplacement remember it." },
+    { name:"Kaw Point", lat:39.1157, lon:-94.6105, era:"colonial", year:"1804", fact:"Lewis and Clark camped here.", story:"The Corps of Discovery stopped at the meeting of the Kansas and Missouri Rivers from June 26 to 29, 1804, to dry supplies and repair boats. Clark noted the high bluffs and good land around the confluence." },
+    { name:"Kansas River confluence", lat:39.1150, lon:-94.6090, era:"native", year:"pre-1800", fact:"The river is named for the Kansa people.", story:"The Kansa (Kaw) people, whose name the river and the state carry, had villages along the lower Kansas River. Rivers here were highways for trade between the plains and the woodlands to the east." },
+  ]
+},
+{
+  key:"phl", name:"Independence Hall", sub:"Old City, Philadelphia", blurb:"Where the Declaration and Constitution were signed",
+  lat:39.9487, lon:-75.1485,
+  here:{ title:"Independence National Historical Park", text:"You're in Old City, where the Declaration of Independence (1776) and the U.S. Constitution (1787) were debated and signed. The brick buildings around you were the working rooms of a colonial capital." },
+  eras:{
+    now:{ text:"A national park of about 20 historic buildings sits among offices, apartments and newer museums, including the Museum of the American Revolution, which opened in 2017." },
+    c20:{ text:"From the late 1940s through the 1950s, the city and federal government cleared three blocks of 19th-century commercial buildings north of Independence Hall to create Independence Mall, giving the hall the open view it has today." },
+    c19:{ text:"Abolitionists gave the Liberty Bell its name in the 1830s and made it a symbol of their cause. The crack that silenced it for good widened in the 1840s. Philadelphia grew into an industrial city of textile mills, shipyards and locomotive works." },
+    colonial:{ span:"1682–1799", text:"William Penn founded Philadelphia in 1682 on a grid between the Delaware and Schuylkill Rivers. By 1776 it was one of the largest cities in Britain's American colonies, and it served as the U.S. capital for most of the 1790s." },
+    native:{ text:"This was Lenapehoking, the homeland of the Lenape. Before Penn's city, Lenape towns such as Shackamaxon stood along the Delaware, and Penn negotiated land agreements with Lenape leaders there." },
+    ice:{ text:"Glaciers never reached Philadelphia, but at the height of the last Ice Age sea level was about 120 meters lower. The Delaware River ran far out across land that is now underwater on the continental shelf." },
+    deep:{ span:"hundreds of millions of years", text:"Philadelphia sits on the Fall Line, where hard, ancient Piedmont rock meets the younger sands and gravels of the Atlantic Coastal Plain. Boats coming upriver had to stop at the falls, which is one reason cities grew along this line." },
+  },
+  ground:{
+    ice:{ name:"Ice Age river gravels", text:"Laid down by a far longer Delaware River", color:"#c9c2a6", story:"When sea level dropped, the Delaware cut deeper and carried coarse gravel from melting ice farther north. Those gravels lie under much of the low ground near the river." },
+    deep:{ name:"Piedmont schist meets Coastal Plain", text:"Ancient metamorphic rock under younger sediment", color:"#8fb3a0", story:"Northwest of here, the city stands on schist and gneiss metamorphosed hundreds of millions of years ago when continents collided to build the Appalachians. Toward the Delaware, that rock dips under layers of sand and gravel washed off the mountains much later." },
+  },
+  pois:[
+    { name:"Museum of the American Revolution", lat:39.9484, lon:-75.1458, era:"now", year:"2017", fact:"Home of Washington's war tent.", story:"Opened in April 2017, the museum's centerpiece is the tent George Washington used as his office and sleeping quarters through much of the Revolutionary War." },
+    { name:"Independence Hall", lat:39.9489, lon:-75.1500, era:"colonial", year:"1776", fact:"Where the Declaration was adopted.", story:"Built between 1732 and 1753 as the Pennsylvania State House. The Second Continental Congress adopted the Declaration of Independence here on July 4, 1776, and the Constitutional Convention met here in the summer of 1787." },
+    { name:"Liberty Bell", lat:39.9496, lon:-75.1503, era:"colonial", year:"1753", fact:"Cast for the State House steeple.", story:"The bell was cast in the 1750s for the State House. Its inscription from Leviticus, 'Proclaim LIBERTY throughout all the Land', made it a symbol for abolitionists in the 1830s, who gave it its name." },
+    { name:"Carpenters' Hall", lat:39.9474, lon:-75.1474, era:"colonial", year:"1774", fact:"First Continental Congress met here.", story:"Built by a guild of master builders in 1770–1774. In September 1774 the First Continental Congress met here to organize the colonies' response to Britain." },
+    { name:"Franklin Court", lat:39.9496, lon:-75.1466, era:"colonial", year:"1763", fact:"Ghost of Ben Franklin's house.", story:"Franklin's house stood here until it was torn down in 1812. Architect Robert Venturi's steel 'ghost structure' (1976) outlines where the house and print shop once stood." },
+    { name:"Christ Church", lat:39.9508, lon:-75.1437, era:"colonial", year:"1744", fact:"Its steeple was the tallest structure in North America.", story:"Completed in 1744, with a 196-foot steeple added in the 1750s that made it the tallest structure in North America for decades. Washington, Franklin and Betsy Ross worshipped here." },
+    { name:"Elfreth's Alley", lat:39.9527, lon:-75.1424, era:"colonial", year:"1702", fact:"America's oldest residential street.", story:"Laid out around 1702, it is often called the nation's oldest continuously lived-on residential street. Its 32 small houses were built for tradespeople: blacksmiths, glassblowers and shipwrights." },
+    { name:"Independence Mall", lat:39.9520, lon:-75.1494, era:"c20", year:"1950s", fact:"Three blocks cleared for a view.", story:"Starting in the late 1940s, three blocks of Victorian-era warehouses and shops were demolished to build a formal mall leading to Independence Hall. It was redesigned again around 2000 with the National Constitution Center." },
+    { name:"Delaware River waterfront", lat:39.9460, lon:-75.1405, era:"c19", year:"1800s", fact:"One of America's busiest ports.", story:"Wharves lined this shore through the 1800s, crowded with ships carrying coal, sugar, immigrants and manufactured goods. Penn's Landing marks where William Penn is said to have come ashore in 1682." },
+    { name:"Shackamaxon (Penn Treaty Park)", lat:39.9667, lon:-75.1300, era:"native", year:"1682", fact:"A Lenape town on the Delaware.", story:"Shackamaxon was a Lenape meeting place. Tradition holds that William Penn made a treaty of friendship with Lenape leader Tamanend under a great elm here in 1682." },
+  ]
+}
+];
+
+// ---------- State ----------
+const S = {
+  loc:null, era:"now", heading:0, headingTarget:0, pitch:90,
+  fov:60, user:{lat:0, lon:0}, live:false, cam:false, compass:false,
+  labels:[], dragging:null, lastLiveFix:null
+};
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+
+// ---------- Claude (only inside a Claude artifact) ----------
+let sampleFn = null, ttsApi = null;
+const hasClaude = !!(window.claude && typeof window.claude.use === "function");
+if (hasClaude) {
+  window.claude.use("sample").then(s => { sampleFn = s; refreshClaudeUI(); }).catch(() => {});
+  window.claude.use("tts").then(t => { ttsApi = t; }).catch(() => {});
+}
+function refreshClaudeUI(){
+  $("any-place").hidden = !sampleFn;
+  $("ask-era").hidden = !sampleFn;
+  $("ask-box").hidden = !sampleFn;
+}
+
+// ---------- Geodesy ----------
+const R = 6371000, rad = d => d*Math.PI/180, deg = r => r*180/Math.PI;
+function dist(a,b){ const dφ=rad(b.lat-a.lat), dλ=rad(b.lon-a.lon); const h=Math.sin(dφ/2)**2+Math.cos(rad(a.lat))*Math.cos(rad(b.lat))*Math.sin(dλ/2)**2; return 2*R*Math.asin(Math.sqrt(h)); }
+function bearing(a,b){ const φ1=rad(a.lat), φ2=rad(b.lat), dλ=rad(b.lon-a.lon); const y=Math.sin(dλ)*Math.cos(φ2), x=Math.cos(φ1)*Math.sin(φ2)-Math.sin(φ1)*Math.cos(φ2)*Math.cos(dλ); return (deg(Math.atan2(y,x))+360)%360; }
+const angDiff = (a,b) => ((a-b+540)%360)-180;
+const fmtDist = m => m < 1000 ? `${Math.round(m/10)*10} m` : `${(m/1000).toFixed(m<10000?1:0)} km`;
+const card = h => ["N","NE","E","SE","S","SW","W","NW"][Math.round(h/45)%8];
+
+// ---------- UI helpers ----------
+let toastT;
+function toast(msg, ms=3800){ const t=$("toast"); t.textContent=msg; t.hidden=false; clearTimeout(toastT); toastT=setTimeout(()=>t.hidden=true, ms); }
+function busy(msg){ if(msg){ $("busy-text").textContent=msg; $("busy").hidden=false; } else $("busy").hidden=true; }
+
+// ---------- Start screen ----------
+DEMOS.forEach(d => {
+  const b=document.createElement("button"); b.className="opt";
+  b.innerHTML=`<b>${esc(d.name)} · ${esc(d.sub)}</b><span>${esc(d.blurb)}</span>`;
+  b.onclick=()=>startDemo(d); $("demo-list").append(b);
+});
+if (hasClaude) $("live-note").textContent = "Uses your camera, GPS and compass. Inside this Claude preview the browser blocks those sensors, so you'll get the simulated view. Open the standalone version on your phone for the real lens.";
+$("go-live").onclick = startLive;
+$("any-form").onsubmit = e => { e.preventDefault(); const q=$("any-input").value.trim(); if(q) startClaudePlace(q); };
+$("change-place").onclick = () => { stopSpeech(); $("start").hidden=false; };
+
+function startDemo(d){
+  S.live=false; stopCamera();
+  setLocation(structuredClone(d), {lat:d.lat, lon:d.lon});
+  // face the nearest landmark
+  const near=[...S.loc.pois].sort((a,b)=>dist(S.user,a)-dist(S.user,b))[0];
+  if(near){ S.heading=S.headingTarget=bearing(S.user,near); }
+  setMode("demo"); $("start").hidden=true;
+  toast("Drag the view to look around. Scrub the time dial to travel back.");
+}
+
+async function startClaudePlace(q){
+  if(!sampleFn) return;
+  busy("Claude is researching " + q + "…");
+  const prompt = `You write content for an augmented-reality history app that shows what a place is today and what was there through time.
+Place: "${q}"
+Return ONLY a JSON object with this shape:
+{"name": short place name, "sub": "City, region/country", "lat": number, "lon": number,  // a spot a visitor would stand
+ "here": {"title": string, "text": "2-3 sentences: what this spot is today and why it's interesting"},
+ "eras": {"now":{"text":...}, "c20":{"text":...}, "c19":{"text":...}, "colonial":{"span":"short date range label fitting local history","text":...}, "native":{"span":..., "text":...}, "ice":{"text":...}, "deep":{"span":"age label","text":...}},
+ "ground": {"ice":{"name":..., "text":"one short line", "story":"2-3 sentences"}, "deep":{"name": the bedrock or geologic setting, "text":"one short line with its age", "story":"2-3 sentences"}},
+ "pois": [ {"name":..., "lat":..., "lon":..., "era":"now|c20|c19|colonial|native", "year":"short year label", "fact":"one sentence", "story":"3-4 sentences"} ]}
+Rules: 7-10 real landmarks or historic sites within 4 km with accurate coordinates, spread across eras. Era texts are 2-3 concrete sentences specific to this location. Outside the Americas, use "colonial" for the early-modern period (about 1500-1799) and "native" for ancient or pre-modern peoples; set their span labels to match. Only state facts you're confident about; if local detail is thin, describe what is true of the wider region and say so.`;
+  try{
+    const data = await sampleFn.json(prompt, {modelTier:"default"});
+    if(!data || typeof data.lat!=="number" || !Array.isArray(data.pois)) throw new Error("bad");
+    data.pois = data.pois.filter(p => typeof p.lat==="number" && typeof p.lon==="number" && ERA[p.era]);
+    data.source = "claude";
+    busy(null); S.live=false; stopCamera();
+    setLocation(data, {lat:data.lat, lon:data.lon});
+    const near=[...S.loc.pois].sort((a,b)=>dist(S.user,a)-dist(S.user,b))[0];
+    if(near) S.heading=S.headingTarget=bearing(S.user,near);
+    setMode("claude"); $("start").hidden=true;
+  }catch(err){
+    busy(null);
+    toast(err?.code==="rate_limited" ? "Claude is busy. Try again in a minute." : "Couldn't build that place. Try a more specific name.");
+  }
+}
+
+// ---------- Live mode: camera + GPS + compass ----------
+async function startLive(){
+  // iOS needs the motion permission from inside the tap
+  try{
+    if (typeof DeviceOrientationEvent!=="undefined" && typeof DeviceOrientationEvent.requestPermission==="function"){
+      await DeviceOrientationEvent.requestPermission().catch(()=>{});
+    }
+  }catch{}
+  window.addEventListener("deviceorientationabsolute", onOrient, true);
+  window.addEventListener("deviceorientation", onOrient, true);
+
+  // camera
+  try{
+    const stream = await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:"environment"}, width:{ideal:1280}}, audio:false});
+    const v=$("video"); v.srcObject=stream; v.hidden=false; await v.play().catch(()=>{});
+    S.cam=true; $("scene").hidden=true;
+  }catch{
+    S.cam=false; toast("Camera unavailable, showing the simulated view instead.");
+  }
+
+  if(!("geolocation" in navigator)){ toast("This browser has no GPS access. Try a demo place."); return; }
+  busy("Finding you…");
+  navigator.geolocation.watchPosition(pos => {
+    const fix={lat:pos.coords.latitude, lon:pos.coords.longitude, acc:pos.coords.accuracy};
+    S.user={lat:fix.lat, lon:fix.lon};
+    if(!S.lastLiveFix || dist(S.lastLiveFix, fix) > 150){ S.lastLiveFix=fix; loadLive(fix); }
+    updatePlaceSub();
+  }, err => {
+    busy(null);
+    toast(err.code===1 ? "Location permission was declined. Try a demo place instead." : "Couldn't get a GPS fix. Try a demo place instead.", 5000);
+    if(!S.loc) $("start").hidden=false;
+  }, {enableHighAccuracy:true, maximumAge:5000, timeout:20000});
+}
+
+function onOrient(e){
+  let h=null;
+  if (typeof e.webkitCompassHeading==="number") h=e.webkitCompassHeading;           // iOS
+  else if ((e.absolute || e.type==="deviceorientationabsolute") && e.alpha!=null){   // Android
+    const a=rad(e.alpha), b=rad(e.beta||0), g=rad(e.gamma||0);
+    // direction the back camera points, in east/north components
+    const east = -(Math.cos(g)*Math.sin(a)*Math.sin(b) + Math.cos(a)*Math.sin(g));
+    const north= -(Math.sin(a)*Math.sin(g) - Math.cos(a)*Math.cos(g)*Math.sin(b));
+    h=(deg(Math.atan2(east,north))+360)%360;
+  }
+  if(h==null) return;
+  const so=(screen.orientation && screen.orientation.angle) || window.orientation || 0;
+  S.headingTarget=(h+so+360)%360; S.compass=true;
+  if(typeof e.beta==="number") S.pitch=e.beta;
+}
+
+async function getJSON(url){ const r=await fetch(url); if(!r.ok) throw new Error(r.status); return r.json(); }
+
+async function loadLive(fix){
+  const {lat, lon} = fix;
+  const loc = { name:"Here", sub:"", lat, lon, live:true, source:"live", here:{title:"Here",text:""}, eras:{}, ground:{}, pois:[] };
+  const tasks = [];
+
+  // What's here now: OpenStreetMap
+  tasks.push(getJSON(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lon}&zoom=18&addressdetails=1&extratags=1&namedetails=1`).then(async d => {
+    const a=d.address||{};
+    const kind=(d.type||d.category||"place").replace(/_/g," ");
+    const town=a.city||a.town||a.village||a.suburb||a.county||"";
+    loc.name = d.name || a.shop || a.amenity || a.road || town || "Here";
+    loc.sub = [town, a.state||a.country].filter(Boolean).join(", ");
+    const built = d.extratags && (d.extratags.start_date || d.extratags["building:start_date"]);
+    loc.here = { title: loc.name, text: `OpenStreetMap lists this spot as a ${kind}${a.road?` on ${a.road}`:""}${town?` in ${town}`:""}.${built?` Records give a start date of ${built}.`:""}` };
+    if(town){
+      try{
+        const s = await getJSON(`https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(town + (a.state?`, ${a.state}`:""))}`);
+        if(s.extract) loc.townText = s.extract;
+      }catch{}
+    }
+  }).catch(()=>{}));
+
+  // Nearby history: Wikipedia geosearch
+  tasks.push(getJSON(`https://en.wikipedia.org/w/api.php?action=query&generator=geosearch&ggscoord=${lat}|${lon}&ggsradius=10000&ggslimit=40&prop=coordinates|extracts|pageimages&exintro=1&explaintext=1&exsentences=4&exlimit=40&piprop=thumbnail&pithumbsize=480&format=json&origin=*`).then(d => {
+    const pages=Object.values((d.query&&d.query.pages)||{});
+    for(const p of pages){
+      const c=p.coordinates&&p.coordinates[0]; if(!c) continue;
+      const text=p.extract||"";
+      const years=[...text.matchAll(/\b(1[0-9]{3}|20[0-2][0-9])\b/g)].map(m=>+m[1]);
+      const y=years.length?Math.min(...years):null;
+      const era = y==null?"now" : y>=2000?"now" : y>=1900?"c20" : y>=1800?"c19" : y>=1500?"colonial" : "native";
+      loc.pois.push({ name:p.title, lat:c.lat, lon:c.lon, era, year:y?String(y):"", fact:text.split(/(?<=\.)\s/)[0]||"", story:text||"No summary available.", img:p.thumbnail&&p.thumbnail.source, link:`https://en.wikipedia.org/?curid=${p.pageid}` });
+    }
+  }).catch(()=>{}));
+
+  // Deep time: Macrostrat geologic map
+  tasks.push(getJSON(`https://macrostrat.org/api/v2/geologic_units/map?lat=${lat}&lng=${lon}`).then(d => {
+    const u=d.success&&d.success.data&&d.success.data[0]; if(!u) return;
+    const ages = u.b_int_name===u.t_int_name ? u.b_int_name : `${u.b_int_name} to ${u.t_int_name}`;
+    const myr = `${Math.round(u.b_age)}–${Math.round(u.t_age)} million years old`;
+    loc.eras.deep = { span:`${Math.round(u.b_age)} Myr ago`, text:`The bedrock mapped under you is the ${u.name}, made of ${u.lith||"sedimentary rock"}. It formed in the ${ages}, ${myr}. ${u.descrip||""}`.trim() };
+    loc.ground.deep = { name:u.name, text:`${ages}, ${myr}`, color:u.color||"#99c2b5", story:loc.eras.deep.text };
+  }).catch(()=>{}));
+
+  await Promise.all(tasks);
+  busy(null);
+
+  const count = id => loc.pois.filter(p=>p.era===id).length;
+  const fill = (id, txt) => { if(!loc.eras[id]) loc.eras[id]={text:txt}; };
+  fill("now", (loc.here.text + (loc.townText?` ${loc.townText}`:"")).trim() || "Look around: nearby places with stories are tagged in the view.");
+  fill("c20", count("c20") ? `${count("c20")} nearby places have 20th-century stories. Tap a tag to read one.` : "No 20th-century stories found within 10 km.");
+  fill("c19", count("c19") ? `${count("c19")} nearby places have stories from the 1800s. Tap a tag to read one.` : "No 1800s stories found within 10 km.");
+  fill("colonial", count("colonial") ? `${count("colonial")} nearby places date from before 1800. Tap a tag to read one.` : "No pre-1800 sites found nearby in Wikipedia.");
+  fill("native", "Open data rarely covers Indigenous history well. native-land.ca maps whose traditional territory you're on; this is a layer a curated or AI-written source would fill.");
+  fill("ice", "About 20,000 years ago, at the peak of the last Ice Age, sea level was roughly 120 meters lower and ice sheets covered much of North America and northern Europe. Local Ice Age detail needs a richer data source than this prototype uses.");
+  fill("deep", "No geologic map unit was found for this spot.");
+
+  const wasNew = !S.loc || !S.loc.live;
+  setLocation(loc, {lat, lon});
+  setMode("live");
+  $("start").hidden=true;
+  if(wasNew) toast(loc.pois.length ? `${loc.pois.length} places with stories within 10 km.` : "No Wikipedia places found nearby.");
+}
+
+function stopCamera(){
+  const v=$("video");
+  if(v.srcObject){ v.srcObject.getTracks().forEach(t=>t.stop()); v.srcObject=null; }
+  v.hidden=true; S.cam=false; $("scene").hidden=false;
+}
+
+// ---------- Location + era ----------
+function setLocation(loc, user){
+  S.loc=loc; S.user={...user};
+  $("place-name").textContent=loc.here?.title || loc.name;
+  updatePlaceSub(); buildDial(); setEra(S.era);
+}
+function updatePlaceSub(){
+  if(!S.loc) return;
+  $("place-sub").textContent = `${S.loc.sub ? S.loc.sub+" · " : ""}${S.user.lat.toFixed(4)}, ${S.user.lon.toFixed(4)}`;
+}
+function setMode(m){
+  const c=$("mode-chip");
+  c.className="chip " + (m==="live"?"live":"demo");
+  c.textContent = m==="live" ? (S.cam?"Live · camera":"Live · GPS") : m==="claude" ? "Claude-written" : "Demo";
+}
+function buildDial(){
+  const dial=$("dial"); dial.innerHTML="";
+  ERAS.forEach(e => {
+    const b=document.createElement("button"); b.className="era"; b.style.setProperty("--c", e.color);
+    const span=(S.loc?.eras?.[e.id]?.span) || e.span;
+    b.innerHTML=`<b>${esc(e.label)}</b><small>${esc(span)}</small>`;
+    b.setAttribute("aria-pressed", String(e.id===S.era));
+    b.onclick=()=>{ setEra(e.id); b.scrollIntoView({inline:"center",block:"nearest",behavior:"smooth"}); };
+    dial.append(b);
+  });
+}
+function setEra(id){
+  S.era=id; stopSpeech();
+  const e=ERA[id], loc=S.loc; if(!loc) return;
+  const col = id==="deep" && loc.ground?.deep?.color ? loc.ground.deep.color : e.color;
+  document.documentElement.style.setProperty("--era", col);
+  [...$("dial").children].forEach((b,i)=>b.setAttribute("aria-pressed", String(ERAS[i].id===id)));
+  $("story-title").textContent = e.label;
+  $("story-span").textContent = loc.eras?.[id]?.span || e.span;
+  const st=$("story-text"); st.classList.remove("open");
+  st.textContent = (id==="now" && loc.here?.text && !loc.live ? loc.here.text + " " : "") + (loc.eras?.[id]?.text || "No story written for this era yet.");
+  // beneath-you card
+  const g=loc.ground?.[id];
+  $("ground").hidden=!g;
+  if(g){ $("ground-name").textContent="Beneath you: "+g.name; $("ground-text").textContent=g.text; $("ground").style.setProperty("--gc", g.color||col); $("ground").querySelector(".swatch").style.setProperty("--gc", g.color||col); }
+  applyTint(id);
+  buildLabels();
+  requestAnimationFrame(measureDock);
+}
+function measureDock(){ document.documentElement.style.setProperty("--dock-h", $("dock").offsetHeight+"px"); }
+$("story-text").onclick = () => { $("story-text").classList.toggle("open"); requestAnimationFrame(measureDock); };
+window.addEventListener("resize", () => { measureDock(); sizeCanvases(); });
+
+const TINTS = {
+  now:{f:"none", t:null},
+  c20:{f:"saturate(.7) contrast(1.05)", t:"#c9a25a"},
+  c19:{f:"sepia(.75) contrast(1.05)", t:"#8a5a2b"},
+  colonial:{f:"sepia(.9) contrast(.95) brightness(.95)", t:"#6b3d22"},
+  native:{f:"saturate(.6) brightness(.95)", t:"#4f6b3a"},
+  ice:{f:"saturate(.25) brightness(1.15)", t:"#9fc8e0"},
+  deep:{f:"saturate(.5) hue-rotate(-20deg) brightness(.85)", t:"#0f5d66"},
+};
+function applyTint(id){
+  const t=TINTS[id]; $("video").style.filter=t.f;
+  const tint=$("tint"); if(t.t && S.cam){ tint.style.background=t.t; tint.style.opacity=".35"; } else tint.style.opacity="0";
+}
+
+// ---------- AR tags ----------
+function visiblePois(){
+  const all=(S.loc?.pois)||[];
+  const within = all.filter(p => dist(S.user,p) < 12000);
+  return S.era==="now" ? within : within.filter(p => p.era===S.era);
+}
+function buildLabels(){
+  const box=$("labels"); box.innerHTML="";
+  S.labels = visiblePois().map(p => {
+    const el=document.createElement("button"); el.className="tag"; el.style.setProperty("--c", eraColor(p.era));
+    el.innerHTML=`<span class="tag-yr">${esc(p.year||ERA[p.era].label)}</span><span class="tag-name">${esc(p.name)}</span><span class="tag-d"></span>`;
+    el.onclick=ev=>{ ev.stopPropagation(); openPoi(p); };
+    box.append(el);
+    return {p, el, dEl:el.querySelector(".tag-d"), w:0};
+  });
+}
+
+// ---------- Detail sheet ----------
+let sheetPoi=null;
+function openPoi(p){
+  sheetPoi=p; stopSpeech();
+  const d=dist(S.user,p), b=bearing(S.user,p);
+  const pill=$("sheet-era"); pill.style.setProperty("--c", eraColor(p.era)); pill.textContent=`${ERA[p.era].label}${p.year?" · "+p.year:""}`;
+  $("sheet-meta").textContent = p.ground ? "under your feet" : `${fmtDist(d)} · ${Math.round(b)}° ${card(b)}`;
+  $("sheet-title").textContent=p.name;
+  $("sheet-story").textContent=p.story||p.fact||"";
+  const img=$("sheet-img"); if(p.img){ img.src=p.img; img.hidden=false; } else { img.hidden=true; img.removeAttribute("src"); }
+  const strata=$("sheet-strata"); strata.hidden=!p.ground;
+  if(p.ground) strata.style.setProperty("--sb", `repeating-linear-gradient(0deg, rgba(0,0,0,.2) 0 4px, transparent 4px 12px), ${p.color||"#99c2b5"}`);
+  const link=$("sheet-link"); if(p.link){ link.href=p.link; link.hidden=false; } else link.hidden=true;
+  const src = S.loc.source==="claude" ? "Written by Claude for this prototype. Check important facts." :
+              S.loc.live ? (p.ground ? "Geology: Macrostrat (CC-BY 4.0)." : "Text and image: Wikipedia (CC BY-SA).") :
+              "Demo content written for this prototype.";
+  $("sheet-source").textContent=src;
+  $("ask-answer").textContent=""; $("ask-input").value="";
+  $("ask-label").textContent = `Ask Claude about ${p.name}`;
+  $("sheet").hidden=false; $("sheet-close").focus();
+}
+function closeSheet(){ $("sheet").hidden=true; stopSpeech(); sheetPoi=null; if(askCtl) askCtl.abort(); }
+$("sheet-close").onclick=closeSheet;
+$("sheet").onclick=e=>{ if(e.target.id==="sheet") closeSheet(); };
+document.addEventListener("keydown", e => { if(e.key==="Escape" && !$("sheet").hidden) closeSheet(); });
+$("ground").onclick=()=>{ const g=S.loc.ground[S.era]; openPoi({ name:g.name, era:S.era, year:"", story:g.story||g.text, ground:true, color:g.color, lat:S.user.lat, lon:S.user.lon }); };
+
+// Ask Claude
+let askCtl=null;
+async function askClaude(question, context, out){
+  if(!sampleFn) return;
+  if(askCtl) askCtl.abort(); askCtl=new AbortController();
+  out.textContent="Thinking…";
+  const prompt=`You are the narrator of a museum-style AR app. The visitor is at ${S.loc.here?.title||S.loc.name}${S.loc.sub?", "+S.loc.sub:""} (lat ${S.user.lat.toFixed(4)}, lon ${S.user.lon.toFixed(4)}).
+${context}
+Visitor's question: ${question}
+Answer in 2-4 plain, vivid sentences for a curious adult. If you're unsure of a local detail, say so briefly instead of inventing it.`;
+  try{
+    const r=await sampleFn(prompt,{signal:askCtl.signal, onText:({text})=>{ out.textContent=text; }, cache:false});
+    out.textContent=r.text;
+  }catch(err){
+    if(err?.name==="AbortError") return;
+    out.textContent = err?.code==="rate_limited" ? "Claude is busy right now. Try again in a minute." : "Couldn't get an answer.";
+  }
+}
+$("ask-go").onclick=()=>{ const q=$("ask-input").value.trim(); if(!q||!sheetPoi) return;
+  askClaude(q, `They are looking at "${sheetPoi.name}" (${ERA[sheetPoi.era].label}${sheetPoi.year?", "+sheetPoi.year:""}). What the app already told them: ${sheetPoi.story}`, $("ask-answer")); };
+$("ask-input").addEventListener("keydown", e=>{ if(e.key==="Enter") $("ask-go").click(); });
+$("ask-era").onclick=()=>{
+  const e=ERA[S.era];
+  openPoi({ name:`${e.label} here`, era:S.era, year:S.loc.eras?.[S.era]?.span||e.span, story:$("story-text").textContent, ground:false, lat:S.user.lat, lon:S.user.lon });
+  $("sheet-meta").textContent="this whole area"; $("ask-input").placeholder="What would I have seen standing here?"; $("ask-input").focus();
+};
+
+// ---------- Narration ----------
+let speaking=false;
+function stopSpeech(){ speaking=false; try{ ttsApi&&ttsApi.stop(); }catch{} try{ window.speechSynthesis&&speechSynthesis.cancel(); }catch{} $("narrate-era").textContent="▶ Narrate"; $("sheet-narrate").textContent="▶ Narrate"; }
+async function speak(text, btn){
+  if(speaking){ stopSpeech(); return; }
+  speaking=true; btn.textContent="■ Stop";
+  const done=()=>{ if(speaking){ speaking=false; btn.textContent="▶ Narrate"; } };
+  if(ttsApi){ try{ await ttsApi.speak(text.slice(0,2000)); }catch{} done(); return; }
+  if("speechSynthesis" in window){ const u=new SpeechSynthesisUtterance(text); u.rate=1; u.onend=done; u.onerror=done; speechSynthesis.speak(u); return; }
+  done(); toast("Narration isn't available in this browser.");
+}
+$("narrate-era").onclick=()=>speak(`${$("story-title").textContent}. ${$("story-text").textContent}`, $("narrate-era"));
+$("sheet-narrate").onclick=()=>speak(`${$("sheet-title").textContent}. ${$("sheet-story").textContent}`, $("sheet-narrate"));
+
+// ---------- Look around by dragging ----------
+const lens=$("lens");
+lens.addEventListener("pointerdown", e => { S.dragging={x:e.clientX, h:S.headingTarget}; lens.setPointerCapture(e.pointerId); });
+lens.addEventListener("pointermove", e => { if(!S.dragging) return; const dx=e.clientX-S.dragging.x; S.headingTarget=(S.dragging.h - dx*S.fov/innerWidth + 720)%360; if(!S.compass) S.heading=S.headingTarget; });
+lens.addEventListener("pointerup", () => S.dragging=null);
+lens.addEventListener("pointercancel", () => S.dragging=null);
+document.addEventListener("keydown", e => {
+  if(!$("start").hidden || !$("sheet").hidden) return;
+  if(e.key==="ArrowLeft"){ S.headingTarget=(S.headingTarget-10+360)%360; }
+  if(e.key==="ArrowRight"){ S.headingTarget=(S.headingTarget+10)%360; }
+});
+
+// ---------- Canvases ----------
+const scene=$("scene"), sctx=scene.getContext("2d");
+const tape=$("tape"), tctx=tape.getContext("2d");
+const radar=$("radar"), rctx=radar.getContext("2d");
+let DPR=1;
+function sizeCanvases(){
+  DPR=Math.min(2, window.devicePixelRatio||1);
+  scene.width=innerWidth*DPR; scene.height=innerHeight*DPR;
+  tape.width=innerWidth*DPR; tape.height=26*DPR;
+}
+sizeCanvases();
+
+function hash(n){ const s=Math.sin(n*127.1+311.7)*43758.5453; return s-Math.floor(s); }
+function noise(az, step, seed){ // periodic over 360°
+  const n=Math.round(360/step), t=((az%360)+360)%360/step, i=Math.floor(t), f=t-i;
+  const a=hash((i%n)+seed*1000), b=hash(((i+1)%n)+seed*1000), u=f*f*(3-2*f);
+  return a+(b-a)*u;
+}
+const SKY = {
+  now:     {sky:["#14202e","#4d6f8f","#e2b98a"], far:"#2a3a48", near:"#10161c", ground:["#1b2228","#0c0f12"], style:"city"},
+  c20:     {sky:["#1f2530","#7c8290","#d9b989"], far:"#3a4048", near:"#1a1c1f", ground:["#2a2a28","#121210"], style:"city"},
+  c19:     {sky:["#2e261d","#8f7556","#e4c896"], far:"#5a4a38", near:"#2a2118", ground:["#3a2f22","#17120c"], style:"town"},
+  colonial:{sky:["#2a2524","#7d6a58","#dcc095"], far:"#5c4d40", near:"#2b221c", ground:["#3b3023","#16110c"], style:"colonial"},
+  native:  {sky:["#1a2725","#56786a","#e4c98a"], far:"#3d5a48", near:"#1b2a20", ground:["#2b3a26","#10170e"], style:"forest"},
+  ice:     {sky:["#2a3b4c","#9cb6c8","#eef3f6"], far:"#c8d7e0", near:"#e8eff3", ground:["#dce6ec","#a9bccb"], style:"ice"},
+  deep:    {sky:["#041a22","#0d4652","#3a8a86"], far:"#0f4d58", near:"#0a3640", ground:["#0e4a55","#04161b"], style:"sea"},
+};
+function drawScene(t){
+  if(S.cam) return;
+  const W=scene.width, H=scene.height, k=SKY[S.era], hz=horizonY()*DPR;
+  const g=sctx.createLinearGradient(0,0,0,hz); g.addColorStop(0,k.sky[0]); g.addColorStop(.7,k.sky[1]); g.addColorStop(1,k.sky[2]);
+  sctx.fillStyle=g; sctx.fillRect(0,0,W,hz+1);
+  const gg=sctx.createLinearGradient(0,hz,0,H); gg.addColorStop(0,k.ground[0]); gg.addColorStop(1,k.ground[1]);
+  sctx.fillStyle=gg; sctx.fillRect(0,hz,W,H-hz);
+  const azAt = x => S.heading + (x/W-.5)*S.fov;
+  const step=3*DPR;
+  // far hills
+  sctx.fillStyle=k.far; sctx.beginPath(); sctx.moveTo(0,hz);
+  for(let x=0;x<=W+step;x+=step){ const az=azAt(x); const h=(noise(az,30,1)*.6+noise(az,10,2)*.4)*H*.07 + (k.style==="ice"?H*.03:0); sctx.lineTo(x,hz-h); }
+  sctx.lineTo(W,hz); sctx.closePath(); sctx.fill();
+  // near layer by era
+  sctx.fillStyle=k.near; sctx.beginPath(); sctx.moveTo(0,hz);
+  for(let x=0;x<=W+step;x+=step){
+    const az=((azAt(x)%360)+360)%360; let h=0;
+    if(k.style==="city"){ const b=Math.floor(az/2.5), r=hash(b+7); h = r<.18?0 : (S.era==="now"? (r<.85? 8+r*60 : 90+hash(b)*140) : 6+r*45); }
+    else if(k.style==="town"){ const b=Math.floor(az/2), r=hash(b+3), f=az/2-b; const base=r<.25?0:10+r*22; h= base? base + (1-Math.abs(2*f-1))*12 : 0; }
+    else if(k.style==="colonial"){ const b=Math.floor(az/2.2), r=hash(b+11), f=az/2.2-b; const base=r<.35?0:8+r*16; h= base? base+(1-Math.abs(2*f-1))*8 : 0; if(r>.95) h=base+ (1-Math.abs(2*f-1))**3*90; }
+    else if(k.style==="forest"){ h = 14 + noise(az,1,4)*26 + noise(az,.5,5)*12; }
+    else if(k.style==="ice"){ h = 4 + noise(az,6,6)*10; }
+    else if(k.style==="sea"){ h = 0; }
+    sctx.lineTo(x, hz - h*DPR);
+  }
+  sctx.lineTo(W,hz); sctx.closePath(); sctx.fill();
+  // lit windows today
+  if(S.era==="now"){
+    sctx.fillStyle="rgba(255,214,150,.55)";
+    for(let x=0;x<W;x+=7*DPR){ const az=((azAt(x)%360)+360)%360, b=Math.floor(az/2.5), r=hash(b+7); if(r<.18) continue;
+      const hh=(r<.85?8+r*60:90+hash(b)*140); for(let y=8;y<hh-4;y+=9){ if(hash(b*31+y+Math.floor(x/(7*DPR)))>.72) sctx.fillRect(x,hz-y*DPR,2*DPR,3*DPR); } }
+  }
+  // sea: wave lines; deep time also gets drifting "plankton"
+  if(k.style==="sea"){
+    sctx.strokeStyle="rgba(160,230,220,.18)"; sctx.lineWidth=1*DPR;
+    for(let i=1;i<14;i++){ const y=hz+(i*i)*3.2*DPR; sctx.beginPath(); for(let x=0;x<=W;x+=8*DPR){ const az=azAt(x); sctx.lineTo(x, y+Math.sin(az*.4+i+t/900)*2*DPR*i*.4); } sctx.stroke(); }
+    sctx.fillStyle="rgba(200,255,240,.35)";
+    for(let i=0;i<60;i++){ const az=hash(i)*360, rel=angDiff(az,S.heading); if(Math.abs(rel)>S.fov/2) continue; const x=(rel/S.fov+.5)*W; const y=((hash(i+9)*H*.9 + t/40*(.3+hash(i+3)))%(H*.9)); sctx.fillRect(x,y,1.5*DPR,1.5*DPR); }
+  }
+  // ground perspective lines
+  if(k.style!=="sea"){
+    sctx.strokeStyle= k.style==="ice" ? "rgba(60,90,110,.12)" : "rgba(236,231,218,.06)"; sctx.lineWidth=1*DPR;
+    for(let a=0;a<360;a+=10){ const rel=angDiff(a,S.heading); if(Math.abs(rel)>S.fov) continue; const xh=(rel/S.fov+.5)*W; sctx.beginPath(); sctx.moveTo(xh,hz); sctx.lineTo(W/2+(xh-W/2)*7,H); sctx.stroke(); }
+  }
+}
+function horizonY(){
+  const H=innerHeight;
+  let y=H*.47;
+  if(S.cam && S.compass){ const vfov=S.fov*H/innerWidth; y = H/2 + ((S.pitch-90)/vfov)*H; y=Math.max(H*.15, Math.min(H*.8, y)); }
+  return y;
+}
+function drawTape(){
+  const W=tape.width, H=tape.height; tctx.clearRect(0,0,W,H);
+  tctx.font=`${10*DPR}px "JetBrains Mono", monospace`; tctx.textAlign="center"; tctx.textBaseline="middle";
+  for(let a=0;a<360;a+=5){
+    const rel=angDiff(a,S.heading); if(Math.abs(rel)>S.fov/2+5) continue;
+    const x=(rel/S.fov+.5)*W; const major=a%45===0;
+    tctx.fillStyle= major? "rgba(236,231,218,.9)" : "rgba(236,231,218,.35)";
+    tctx.fillRect(x-.5*DPR, major?2*DPR:6*DPR, 1*DPR, major?8*DPR:4*DPR);
+    if(major) tctx.fillText(["N","NE","E","SE","S","SW","W","NW"][a/45], x, 18*DPR);
+  }
+  tctx.fillStyle="#d9a55b"; tctx.beginPath(); tctx.moveTo(W/2-5*DPR,0); tctx.lineTo(W/2+5*DPR,0); tctx.lineTo(W/2,6*DPR); tctx.fill();
+}
+function drawRadar(){
+  const W=radar.width, c=W/2, r=c-6; rctx.clearRect(0,0,W,W);
+  rctx.strokeStyle="rgba(236,231,218,.18)"; rctx.lineWidth=2;
+  [1,.5].forEach(f=>{ rctx.beginPath(); rctx.arc(c,c,r*f,0,Math.PI*2); rctx.stroke(); });
+  // view cone (always pointing up)
+  rctx.fillStyle="rgba(217,165,91,.16)"; rctx.beginPath(); rctx.moveTo(c,c);
+  rctx.arc(c,c,r,-Math.PI/2-rad(S.fov/2),-Math.PI/2+rad(S.fov/2)); rctx.closePath(); rctx.fill();
+  const pts=S.labels.map(L=>L.p); if(!pts.length) return;
+  const maxD=Math.max(500,...pts.map(p=>dist(S.user,p)));
+  for(const p of pts){
+    const d=dist(S.user,p), a=rad(angDiff(bearing(S.user,p),S.heading)), rr=Math.sqrt(d/maxD)*r;
+    rctx.fillStyle=eraColor(p.era); rctx.beginPath(); rctx.arc(c+Math.sin(a)*rr, c-Math.cos(a)*rr, 4, 0, Math.PI*2); rctx.fill();
+  }
+  rctx.fillStyle="#ece7da"; rctx.beginPath(); rctx.arc(c,c,4,0,Math.PI*2); rctx.fill();
+  // north marker
+  const na=rad(-S.heading); rctx.fillStyle="#d9a55b"; rctx.font="bold 20px 'JetBrains Mono', monospace"; rctx.textAlign="center"; rctx.textBaseline="middle";
+  rctx.fillText("N", c+Math.sin(na)*(r-10), c-Math.cos(na)*(r-10));
+}
+
+// ---------- Frame loop ----------
+let lastHeadingText="";
+function frame(t){
+  const d=angDiff(S.headingTarget,S.heading);
+  S.heading=(S.heading + d*(S.compass?0.15:0.35) + 360)%360;
+  if(S.loc){
+    drawScene(t); drawTape(); drawRadar();
+    const ht=`${Math.round(S.heading)%360}° ${card(S.heading)}`; if(ht!==lastHeadingText){ $("heading-chip").textContent=ht; lastHeadingText=ht; }
+    placeLabels();
+  }
+  requestAnimationFrame(frame);
+}
+function placeLabels(){
+  const W=innerWidth, hz=horizonY(), placed=[]; let left=0, right=0;
+  const items=S.labels.map(L=>({L, d:dist(S.user,L.p), rel:angDiff(bearing(S.user,L.p),S.heading)})).sort((a,b)=>a.d-b.d);
+  items.forEach((it,i) => {
+    const {L,d,rel}=it;
+    if(Math.abs(rel) > S.fov/2+4){ L.el.style.visibility="hidden"; rel<0?left++:right++; return; }
+    L.el.style.visibility="visible";
+    const x = W/2 + (rel/(S.fov/2))*(W/2);
+    let y = hz + 40 - Math.max(0, Math.log10(Math.max(d,30))-1.5)*55;
+    const s = Math.max(.72, Math.min(1.1, 1.25 - Math.log10(Math.max(d,30))*0.15));
+    const w = (L.w || (L.w=L.el.offsetWidth||150))*s;
+    let guard=0; while(placed.some(q=>Math.abs(q.x-x)<(q.w+w)/2+6 && Math.abs(q.y-y)<52*Math.min(s,q.s)+6) && guard++<12) y-=56*s;
+    placed.push({x,y,w,s});
+    L.el.style.transform=`translate(${x}px,${y-28}px) translate(-50%,-100%) scale(${s})`;
+    L.el.style.zIndex=String(1000-i);
+    const txt=fmtDist(d); if(L.dEl.textContent!==txt) L.dEl.textContent=txt;
+  });
+  const eL=$("edgeL"), eR=$("edgeR");
+  eL.hidden=!left; eR.hidden=!right; if(left) eL.textContent=`‹ ${left}`; if(right) eR.textContent=`${right} ›`;
+}
+requestAnimationFrame(frame);
+measureDock();
+})();
+</script>
+</body></html>
