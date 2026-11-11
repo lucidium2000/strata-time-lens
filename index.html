@@ -820,15 +820,17 @@ async function loadLive(fix){
           }catch{}
         }
       }).catch(()=>{}),
-      // Wikipedia: only point-like articles close by. Skip cities, counties and regions,
+      // Wikipedia: nearest articles first, out to 10 km. Skip cities, counties and regions,
       // whose coordinates point at a center that may be far away.
-      getJSON(`https://en.wikipedia.org/w/api.php?action=query&generator=geosearch&ggscoord=${lat}|${lon}&ggsradius=${FETCH_R}&ggslimit=50&prop=coordinates|extracts|pageimages&coprop=type|dim&exintro=1&explaintext=1&exsentences=5&exlimit=50&piprop=thumbnail&pithumbsize=480&format=json&origin=*`, 9000).then(d => {
-        for(const p of Object.values((d.query&&d.query.pages)||{})){
-          const c=p.coordinates&&p.coordinates[0]; if(!c) continue;
-          if(/^(city|adm|country|state|region|continent|isle|waterbody|river|mountain)/i.test(c.type||"")) continue;
-          if((c.dim||0) > 2500) continue;
-          wiki.push(poiFromWiki(p, c.lat, c.lon));
-        }
+      getJSON(`https://en.wikipedia.org/w/api.php?action=query&list=geosearch&gscoord=${lat}|${lon}&gsradius=${FETCH_R}&gslimit=100&gsprop=type|dim&format=json&origin=*`, 9000).then(async d => {
+        const hits=((d.query&&d.query.geosearch)||[])
+          .filter(g => !/^(city|adm|country|state|region|continent|isle|waterbody|river|mountain)/i.test(g.type||"") && !((g.dim||0) > 2500))
+          .slice(0,40);
+        const batches=[]; for(let k=0;k<hits.length;k+=20) batches.push(hits.slice(k,k+20));
+        await Promise.all(batches.map(b => getJSON(`https://en.wikipedia.org/w/api.php?action=query&pageids=${b.map(g=>g.pageid).join("|")}&prop=extracts|pageimages&exintro=1&explaintext=1&exsentences=5&exlimit=20&piprop=thumbnail&pithumbsize=480&format=json&origin=*`, 8000).then(r => {
+          const pages=(r.query&&r.query.pages)||{};
+          for(const g of b){ const pg=pages[g.pageid]; if(pg) wiki.push(poiFromWiki(pg, g.lat, g.lon)); }
+        }).catch(()=>{ for(const g of b) wiki.push({ name:g.title, lat:g.lat, lon:g.lon, year:"", fact:"", story:"", link:`https://en.wikipedia.org/?curid=${g.pageid}`, src:"wikipedia" }); })));
       }).catch(()=>{}),
       getJSON(`https://macrostrat.org/api/v2/geologic_units/map?lat=${lat}&lng=${lon}`, 7000).then(d => {
         const u=d.success&&d.success.data&&d.success.data[0]; if(!u) return;
@@ -842,11 +844,11 @@ async function loadLive(fix){
     if(seq!==loadSeq) return;
     loc.pois = wiki.map(p => ({...p, era: eraOf(p.year)})).sort((a,b)=>dist(fix,a)-dist(fix,b)).slice(0,70);
     fillEraTexts(loc);
-    if(firstLoad) S.range = pickRange(loc.pois, fix);
+    if(firstLoad || loc.pois.filter(p=>dist(fix,p)<=S.range).length<MIN_TAGS) S.range = pickRange(loc.pois, fix);
     setLocation(loc, {lat, lon});
     setMode("live");
     closeStart();
-    if(firstLoad){ toast("Lens ready · adding nearby markers and landmarks…", 3500, I.spark); if($("calib").hidden) maybeCoach(); }
+    if(firstLoad){ toast(S.range>600 && loc.pois.length ? `Nothing right next to you, so the lens looks ${fmtDist(S.range)} out` : "Lens ready · adding nearby markers and landmarks…", 3800, I.spark); if($("calib").hidden) maybeCoach(); }
   }catch(e){
     console.error(e);
   }finally{
@@ -889,8 +891,8 @@ async function loadLive(fix){
     fillEraTexts(loc);
     if(S.expanded) S.expanded = loc.pois.find(p=>p.name===openName) || null;
     if(narrPoi) narrPoi = loc.pois.find(p=>p.name===narrPoi.name) || narrPoi;
-    if(before < 4){ const r=pickRange(loc.pois, fix); if(r < S.range || before===0) S.range=r; updateRangeChip(); }
-    buildLabels(); updateDisc();
+    { const r=pickRange(loc.pois, fix); if(r < S.range || loc.pois.filter(p=>dist(fix,p)<=S.range).length<MIN_TAGS) S.range=r; }
+    buildLabels(); updateDisc(); updateRangeChip();
     const added=loc.pois.length-before;
     if(added>0) toast(`+${added} markers and landmarks from OpenStreetMap`, 3000, I.spark);
   }catch{
@@ -911,12 +913,21 @@ function fillEraTexts(loc){
 }
 
 // Smallest view range that still shows a few tags; tap the range chip to change it
-const RANGES=[150,300,600,1200,2500];
-function pickRange(pois, at){
-  for(const r of RANGES.slice(0,4)) if(pois.filter(p=>dist(at,p)<=r).length>=4) return r;
-  return 1200;
+const RANGES=[150,300,600,1200,2500,5000,10000];
+const MIN_TAGS=2;
+// Smallest range that shows at least two places (optionally for one era); widest if none does
+function pickRange(pois, at, era){
+  const list = era && era!=="now" ? pois.filter(p=>p.era===era) : pois;
+  for(const r of RANGES) if(list.filter(p=>dist(at,p)<=r).length>=MIN_TAGS) return r;
+  return RANGES[RANGES.length-1];
 }
-const FETCH_R=2000, OSM_R=800;
+// The range actually used: the one you picked, widened for this era if it would show fewer than two
+function effRange(){
+  const pois=(S.loc?.pois)||[], inEra = S.era==="now" ? pois : pois.filter(p=>p.era===S.era);
+  if(inEra.filter(p=>dist(S.user,p)<=S.range).length>=MIN_TAGS) return S.range;
+  return Math.max(S.range, pickRange(pois, S.user, S.era));
+}
+const FETCH_R=10000, OSM_R=800;
 const OVERPASS=["https://overpass-api.de/api/interpreter","https://overpass.private.coffee/api/interpreter"];
 async function overpass(q){
   let last;
@@ -985,9 +996,9 @@ function setLocation(loc, user){
   $("place-name").textContent=loc.here?.title || loc.name;
   updatePlaceSub(); buildDial(); updateDisc(); updateRangeChip(); setEra(S.era, true);
 }
-function updateRangeChip(){ $("range-chip").textContent=`◎ ${fmtDist(S.range)}`; }
-$("range-chip").onclick=()=>{ const i=RANGES.indexOf(S.range); S.range=RANGES[(i+1)%RANGES.length]; updateRangeChip(); buildLabels();
-  const n=visiblePois().length; toast(`Looking ${fmtDist(S.range)} out · ${n} place${n===1?"":"s"}`, 2200); };
+function updateRangeChip(){ const r=effRange(); $("range-chip").textContent=`◎ ${fmtDist(r)}${r>S.range?" · auto":""}`; }
+$("range-chip").onclick=()=>{ const i=RANGES.indexOf(S.range); S.range=RANGES[(i+1)%RANGES.length]; buildLabels(); updateRangeChip();
+  const n=visiblePois().length, r=effRange(); toast(r>S.range ? `Nothing within ${fmtDist(S.range)} for this era, so showing ${fmtDist(r)} · ${n} place${n===1?"":"s"}` : `Looking ${fmtDist(r)} out · ${n} place${n===1?"":"s"}`, 2600); };
 function updatePlaceSub(){
   if(!S.loc) return;
   $("place-sub").textContent = `${S.loc.sub ? S.loc.sub+" · " : ""}${S.user.lat.toFixed(4)}, ${S.user.lon.toFixed(4)}`;
@@ -1036,7 +1047,7 @@ function setEra(id, quiet){
   $("ground").hidden=!g;
   if(g){ $("ground-name").textContent=g.name; $("ground-text").textContent=g.text; $("ground").querySelector(".swatch").style.setProperty("--gc", g.color||e.color); }
   applyTint(id);
-  buildLabels();
+  buildLabels(); updateRangeChip();
   animateYear(eraYa(id));
   if(changed && !quiet){
     const w=$("warp"); w.classList.remove("go"); void w.offsetWidth; w.classList.add("go");
@@ -1087,7 +1098,7 @@ function applyTint(id){
 // ---------- AR tags ----------
 function visiblePois(){
   const all=(S.loc?.pois)||[];
-  const within = all.filter(p => dist(S.user,p) <= S.range);
+  const r=effRange(); const within = all.filter(p => dist(S.user,p) <= r);
   return S.era==="now" ? within : within.filter(p => p.era===S.era);
 }
 function badgeText(p){ const y=(p.year||"").match(/\d{4}/); return y ? "’"+y[0].slice(2) : ERA[p.era].short.slice(0,3); }
