@@ -247,7 +247,7 @@ svg.i{width:18px;height:18px;flex:none;stroke:currentColor;fill:none;stroke-widt
 #toast{position:absolute;left:50%;top:calc(var(--safe-t) + 132px);transform:translateX(-50%);z-index:40;max-width:min(90vw,440px);
   padding:10px 16px;border-radius:999px;font-size:13px;text-align:center;display:flex;gap:8px;align-items:center;animation:pop .4s cubic-bezier(.2,1.4,.4,1)}
 #busy{position:absolute;inset:0;z-index:35;display:grid;place-items:center;background:rgba(5,7,11,.6)}
-#busy > div{padding:16px 20px;border-radius:20px;font-size:14px;display:flex;gap:12px;align-items:center}
+#busy > div{padding:16px 20px;border-radius:20px;font-size:15px;display:flex;gap:12px;align-items:center;flex-wrap:wrap;justify-content:center;max-width:min(90vw,420px);text-align:center}
 .spin{width:18px;height:18px;border-radius:50%;border:2px solid transparent;border-top-color:var(--cyan);border-right-color:#c08bff;animation:spin .9s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
 /* Auto-narration */
@@ -401,7 +401,7 @@ svg.i{width:18px;height:18px;flex:none;stroke:currentColor;fill:none;stroke-widt
   </div>
 
   <div id="toast" class="glass holo" hidden></div>
-  <div id="busy" hidden><div class="glass holo"><span class="spin"></span><span id="busy-text">Loading…</span></div></div>
+  <div id="busy" hidden><div class="glass holo"><span class="spin"></span><span id="busy-text">Loading…</span><button class="btn sm" id="busy-cancel" hidden>Cancel</button></div></div>
 </div>
 
 <script>
@@ -539,7 +539,7 @@ const card = h => ["N","NE","E","SE","S","SW","W","NW"][Math.round(h/45)%8];
 // ---------- UI helpers ----------
 let toastT;
 function toast(msg, ms=3800, icon=""){ const t=$("toast"); t.innerHTML=icon+`<span>${esc(msg)}</span>`; t.hidden=false; t.style.animation="none"; void t.offsetWidth; t.style.animation=""; clearTimeout(toastT); toastT=setTimeout(()=>t.hidden=true, ms); }
-function busy(msg){ if(msg){ $("busy-text").textContent=msg; $("busy").hidden=false; } else $("busy").hidden=true; }
+function busy(msg, cancellable){ if(msg){ $("busy-text").textContent=msg; $("busy-cancel").hidden=!cancellable; $("busy").hidden=false; } else $("busy").hidden=true; }
 
 // ---------- Discovery progress (per viewer, this browser only) ----------
 function discKey(){ return "strata:disc:" + (S.loc?.key || S.loc?.name || "x"); }
@@ -561,6 +561,12 @@ if (hasClaude) $("live-note").textContent = "This Claude preview blocks the came
 function unlockSpeech(){ try{ if("speechSynthesis" in window && !ttsApi){ const u=new SpeechSynthesisUtterance(" "); u.volume=0; speechSynthesis.speak(u); } }catch{} }
 document.addEventListener("click", e=>{ if(e.target.closest("#start button, #start form")) unlockSpeech(); }, true);
 $("go-live").onclick = startLive;
+$("busy-cancel").onclick = () => {
+  loadSeq++; busy(null); clearTimeout(gpsSlowT);
+  if(gpsWatch!=null){ navigator.geolocation.clearWatch(gpsWatch); gpsWatch=null; }
+  S.lastLiveFix=null; stopCamera();
+  $("start").hidden=false; startBg();
+};
 $("any-form").onsubmit = e => { e.preventDefault(); const q=$("any-input").value.trim(); if(q) startClaudePlace(q); };
 $("change-place").onclick = () => { stopSpeech(); $("start").hidden=false; startBg(); };
 
@@ -625,18 +631,23 @@ async function startLive(){
   }
 
   if(!("geolocation" in navigator)){ toast("This browser has no GPS access. Try a demo place."); return; }
-  busy("Locking onto your position…");
-  navigator.geolocation.watchPosition(pos => {
+  busy("Finding your position…", true);
+  clearTimeout(gpsSlowT);
+  gpsSlowT=setTimeout(()=>{ if(!S.lastLiveFix && !$("busy").hidden) busy("Still waiting for GPS. Step outside or near a window, or cancel and try a demo place.", true); }, 12000);
+  if(gpsWatch!=null) navigator.geolocation.clearWatch(gpsWatch);
+  gpsWatch = navigator.geolocation.watchPosition(pos => {
     const fix={lat:pos.coords.latitude, lon:pos.coords.longitude, acc:pos.coords.accuracy};
     S.user={lat:fix.lat, lon:fix.lon};
     if(!S.lastLiveFix || dist(S.lastLiveFix, fix) > 150){ S.lastLiveFix=fix; loadLive(fix); }
     updatePlaceSub();
   }, err => {
+    if(S.lastLiveFix) return;              // a later hiccup; keep the lens running
     busy(null);
     toast(err.code===1 ? "Location permission was declined. Try a demo place instead." : "Couldn't get a GPS fix. Try a demo place instead.", 5000);
     if(!S.loc) { $("start").hidden=false; startBg(); }
-  }, {enableHighAccuracy:true, maximumAge:5000, timeout:20000});
+  }, {enableHighAccuracy:true, maximumAge:15000, timeout:25000});
 }
+let gpsWatch=null, gpsSlowT=0;
 
 function onOrient(e){
   let h=null;
@@ -653,105 +664,127 @@ function onOrient(e){
   if(typeof e.beta==="number") S.pitch=e.beta;
 }
 
-async function getJSON(url){ const r=await fetch(url); if(!r.ok) throw new Error(r.status); return r.json(); }
+// Every network call gets a time limit so one slow service can't freeze the app
+async function getJSON(url, ms=9000){
+  const ac=new AbortController(), t=setTimeout(()=>ac.abort(), ms);
+  try{ const r=await fetch(url,{signal:ac.signal}); if(!r.ok) throw new Error(r.status); return await r.json(); }
+  finally{ clearTimeout(t); }
+}
 
+let loadSeq=0;
 async function loadLive(fix){
+  const seq=++loadSeq;
   const {lat, lon} = fix;
   const loc = { key:`live:${lat.toFixed(2)},${lon.toFixed(2)}`, name:"Here", sub:"", lat, lon, live:true, source:"live", here:{title:"Here",text:""}, eras:{}, ground:{}, pois:[] };
-  const tasks = [];
+  const firstLoad = !S.loc || !S.loc.live;
+  if(firstLoad) busy("Loading the history around you…");
+  const wiki=[];
+  try{
+    // Phase 1: fast sources. The lens opens as soon as these answer (or time out).
+    await Promise.all([
+      getJSON(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lon}&zoom=18&addressdetails=1&extratags=1&namedetails=1`, 7000).then(async d => {
+        const a=d.address||{};
+        const kind=(d.type||d.category||"place").replace(/_/g," ");
+        const town=a.city||a.town||a.village||a.suburb||a.county||"";
+        loc.name = d.name || a.shop || a.amenity || a.road || town || "Here";
+        loc.sub = [town, a.state||a.country].filter(Boolean).join(", ");
+        const built = d.extratags && (d.extratags.start_date || d.extratags["building:start_date"]);
+        loc.here = { title: loc.name, text: `OpenStreetMap lists this spot as a ${kind}${a.road?` on ${a.road}`:""}${town?` in ${town}`:""}.${built?` Records give a start date of ${built}.`:""}` };
+        if(town){
+          try{
+            const s = await getJSON(`https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(town + (a.state?`, ${a.state}`:""))}`, 5000);
+            if(s.extract) loc.townText = s.extract;
+          }catch{}
+        }
+      }).catch(()=>{}),
+      // Wikipedia: only point-like articles close by. Skip cities, counties and regions,
+      // whose coordinates point at a center that may be far away.
+      getJSON(`https://en.wikipedia.org/w/api.php?action=query&generator=geosearch&ggscoord=${lat}|${lon}&ggsradius=${FETCH_R}&ggslimit=50&prop=coordinates|extracts|pageimages&coprop=type|dim&exintro=1&explaintext=1&exsentences=5&exlimit=50&piprop=thumbnail&pithumbsize=480&format=json&origin=*`, 9000).then(d => {
+        for(const p of Object.values((d.query&&d.query.pages)||{})){
+          const c=p.coordinates&&p.coordinates[0]; if(!c) continue;
+          if(/^(city|adm|country|state|region|continent|isle|waterbody|river|mountain)/i.test(c.type||"")) continue;
+          if((c.dim||0) > 2500) continue;
+          wiki.push(poiFromWiki(p, c.lat, c.lon));
+        }
+      }).catch(()=>{}),
+      getJSON(`https://macrostrat.org/api/v2/geologic_units/map?lat=${lat}&lng=${lon}`, 7000).then(d => {
+        const u=d.success&&d.success.data&&d.success.data[0]; if(!u) return;
+        const ages = u.b_int_name===u.t_int_name ? u.b_int_name : `${u.b_int_name} to ${u.t_int_name}`;
+        const myr = `${Math.round(u.b_age)}–${Math.round(u.t_age)} million years old`;
+        loc.deepYa = u.b_age*1e6;
+        loc.eras.deep = { span:`${Math.round(u.b_age)} Myr ago`, text:`The bedrock mapped under you is the ${u.name}, made of ${u.lith||"sedimentary rock"}. It formed in the ${ages}, ${myr}. ${u.descrip||""}`.trim() };
+        loc.ground.deep = { name:u.name, text:`${ages} · ${myr}`, color:u.color||"#3fe0c5", story:loc.eras.deep.text };
+      }).catch(()=>{}),
+    ]);
+    if(seq!==loadSeq) return;
+    loc.pois = wiki.map(p => ({...p, era: eraOf(p.year)})).sort((a,b)=>dist(fix,a)-dist(fix,b)).slice(0,70);
+    fillEraTexts(loc);
+    if(firstLoad) S.range = pickRange(loc.pois, fix);
+    setLocation(loc, {lat, lon});
+    setMode("live");
+    closeStart();
+    if(firstLoad) toast("Lens ready · adding nearby markers and landmarks…", 3500, I.spark);
+  }catch(e){
+    console.error(e);
+  }finally{
+    if(seq===loadSeq) busy(null);
+  }
+  if(seq!==loadSeq) return;
 
-  tasks.push(getJSON(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lon}&zoom=18&addressdetails=1&extratags=1&namedetails=1`).then(async d => {
-    const a=d.address||{};
-    const kind=(d.type||d.category||"place").replace(/_/g," ");
-    const town=a.city||a.town||a.village||a.suburb||a.county||"";
-    loc.name = d.name || a.shop || a.amenity || a.road || town || "Here";
-    loc.sub = [town, a.state||a.country].filter(Boolean).join(", ");
-    const built = d.extratags && (d.extratags.start_date || d.extratags["building:start_date"]);
-    loc.here = { title: loc.name, text: `OpenStreetMap lists this spot as a ${kind}${a.road?` on ${a.road}`:""}${town?` in ${town}`:""}.${built?` Records give a start date of ${built}.`:""}` };
-    if(town){
+  // Phase 2 (in the background): OpenStreetMap markers, plaques, dated buildings, art
+  try{
+    const d = await overpass(osmQuery(lat, lon, OSM_R));
+    const osm=[], wikiWanted=new Set();
+    for(const el of d.elements||[]){ const p=poiFromOsm(el); if(!p) continue; osm.push(p); if(p.wikiTitle) wikiWanted.add(p.wikiTitle); }
+    const already=new Set(wiki.map(w=>w.name));
+    const titles=[...wikiWanted].filter(t=>!already.has(t)).slice(0,40);
+    for(let i=0;i<titles.length;i+=20){
       try{
-        const s = await getJSON(`https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(town + (a.state?`, ${a.state}`:""))}`);
-        if(s.extract) loc.townText = s.extract;
+        const r=await getJSON(`https://en.wikipedia.org/w/api.php?action=query&titles=${encodeURIComponent(titles.slice(i,i+20).join("|"))}&redirects=1&prop=extracts|pageimages&exintro=1&explaintext=1&exsentences=5&exlimit=20&piprop=thumbnail&pithumbsize=480&format=json&origin=*`, 7000);
+        const redir=Object.fromEntries(((r.query&&r.query.redirects)||[]).map(x=>[x.to,x.from]));
+        for(const p of Object.values((r.query&&r.query.pages)||{})){
+          if(!p.extract) continue;
+          const o=osm.find(x=>x.wikiTitle===p.title || x.wikiTitle===redir[p.title]); if(!o) continue;
+          const w=poiFromWiki(p, o.lat, o.lon);
+          Object.assign(o, { fact:w.fact, story:[w.story, o.story].filter(Boolean).join(" "), img:w.img, link:w.link, year:o.year||w.year, src:"osm+wiki" });
+        }
       }catch{}
     }
-  }).catch(()=>{}));
-
-  // Wikipedia: only point-like articles close by. Skip cities, counties and regions,
-  // whose coordinates point at a center that may be far away.
-  const wiki=[], osm=[], wikiWanted=new Set();
-  tasks.push(getJSON(`https://en.wikipedia.org/w/api.php?action=query&generator=geosearch&ggscoord=${lat}|${lon}&ggsradius=${FETCH_R}&ggslimit=50&prop=coordinates|extracts|pageimages&coprop=type|dim&exintro=1&explaintext=1&exsentences=5&exlimit=50&piprop=thumbnail&pithumbsize=480&format=json&origin=*`).then(d => {
-    for(const p of Object.values((d.query&&d.query.pages)||{})){
-      const c=p.coordinates&&p.coordinates[0]; if(!c) continue;
-      if(/^(city|adm|country|state|region|continent|isle|waterbody|river|mountain)/i.test(c.type||"")) continue;
-      if((c.dim||0) > 2500) continue;
-      wiki.push(poiFromWiki(p, c.lat, c.lon));
+    if(seq!==loadSeq || S.loc!==loc) return;
+    // Merge: an OSM feature and a Wikipedia article about the same thing become one tag
+    const norm=x=>String(x).toLowerCase().replace(/[^a-z0-9]/g,"");
+    const merged=[...osm];
+    for(const w of wiki){
+      const twin=merged.find(o => (o.wikiTitle===w.name || norm(o.name)===norm(w.name)) && dist(o,w)<300);
+      if(twin){ if(!twin.img) Object.assign(twin,{fact:w.fact, story:[w.story,twin.story].filter(Boolean).join(" "), img:w.img, link:w.link, year:twin.year||w.year}); }
+      else merged.push(w);
     }
-  }).catch(()=>{}));
-
-  // OpenStreetMap: historic features, markers and plaques, memorials, dated buildings, churches, art
-  tasks.push(overpass(osmQuery(lat, lon, OSM_R)).then(d => {
-    for(const el of d.elements||[]){
-      const p=poiFromOsm(el); if(!p) continue;
-      osm.push(p); if(p.wikiTitle) wikiWanted.add(p.wikiTitle);
-    }
-  }).catch(()=>{ loc.osmFailed=true; }));
-
-  tasks.push(getJSON(`https://macrostrat.org/api/v2/geologic_units/map?lat=${lat}&lng=${lon}`).then(d => {
-    const u=d.success&&d.success.data&&d.success.data[0]; if(!u) return;
-    const ages = u.b_int_name===u.t_int_name ? u.b_int_name : `${u.b_int_name} to ${u.t_int_name}`;
-    const myr = `${Math.round(u.b_age)}–${Math.round(u.t_age)} million years old`;
-    loc.deepYa = u.b_age*1e6;
-    loc.eras.deep = { span:`${Math.round(u.b_age)} Myr ago`, text:`The bedrock mapped under you is the ${u.name}, made of ${u.lith||"sedimentary rock"}. It formed in the ${ages}, ${myr}. ${u.descrip||""}`.trim() };
-    loc.ground.deep = { name:u.name, text:`${ages} · ${myr}`, color:u.color||"#3fe0c5", story:loc.eras.deep.text };
-  }).catch(()=>{}));
-
-  await Promise.all(tasks);
-
-  // Pull Wikipedia summaries for OSM features that link to an article
-  const already=new Set(wiki.map(w=>w.name));
-  const titles=[...wikiWanted].filter(t=>!already.has(t)).slice(0,40);
-  for(let i=0;i<titles.length;i+=20){
-    try{
-      const d=await getJSON(`https://en.wikipedia.org/w/api.php?action=query&titles=${encodeURIComponent(titles.slice(i,i+20).join("|"))}&redirects=1&prop=extracts|pageimages&exintro=1&explaintext=1&exsentences=5&exlimit=20&piprop=thumbnail&pithumbsize=480&format=json&origin=*`);
-      const redir=Object.fromEntries(((d.query&&d.query.redirects)||[]).map(r=>[r.to,r.from]));
-      for(const p of Object.values((d.query&&d.query.pages)||{})){
-        if(!p.extract) continue;
-        const o=osm.find(x=>x.wikiTitle===p.title || x.wikiTitle===redir[p.title]); if(!o) continue;
-        const w=poiFromWiki(p, o.lat, o.lon);
-        Object.assign(o, { fact:w.fact, story:[w.story, o.story].filter(Boolean).join(" "), img:w.img, link:w.link, year:o.year||w.year, src:"osm+wiki" });
-      }
-    }catch{}
+    const before=loc.pois.length;
+    const openName=S.expanded?.name;
+    loc.pois = merged.map(p => ({...p, era: p.era || eraOf(p.year)})).sort((a,b)=>dist(fix,a)-dist(fix,b)).slice(0,70);
+    loc.eras={...loc.eras}; ["c20","c19","colonial"].forEach(k=>{ if(loc.eras[k]?.auto) delete loc.eras[k]; });
+    fillEraTexts(loc);
+    if(S.expanded) S.expanded = loc.pois.find(p=>p.name===openName) || null;
+    if(narrPoi) narrPoi = loc.pois.find(p=>p.name===narrPoi.name) || narrPoi;
+    if(before < 4){ const r=pickRange(loc.pois, fix); if(r < S.range || before===0) S.range=r; updateRangeChip(); }
+    buildLabels(); updateDisc();
+    const added=loc.pois.length-before;
+    if(added>0) toast(`+${added} markers and landmarks from OpenStreetMap`, 3000, I.spark);
+  }catch{
+    if(seq===loadSeq && S.loc===loc && !loc.pois.length) toast("OpenStreetMap is busy right now. Showing Wikipedia places only.", 4000);
   }
-  // Merge: an OSM feature and a Wikipedia article about the same thing become one tag
-  const norm=s=>String(s).toLowerCase().replace(/[^a-z0-9]/g,"");
-  for(const w of wiki){
-    const twin=osm.find(o => (o.wikiTitle===w.name || norm(o.name)===norm(w.name)) && dist(o,w)<300);
-    if(twin){ if(!twin.img){ Object.assign(twin,{fact:w.fact, story:[w.story,twin.story].filter(Boolean).join(" "), img:w.img, link:w.link, year:twin.year||w.year}); } }
-    else osm.push(w);
-  }
-  loc.pois = osm.map(p => ({...p, era: p.era || eraOf(p.year)}))
-                .sort((a,b)=>dist(fix,a)-dist(fix,b)).slice(0,70);
-  busy(null);
+}
 
+function fillEraTexts(loc){
   const count = id => loc.pois.filter(p=>p.era===id).length;
-  const fill = (id, txt) => { if(!loc.eras[id]) loc.eras[id]={text:txt}; };
+  const fill = (id, txt, auto) => { if(!loc.eras[id]) loc.eras[id]={text:txt, auto}; };
   fill("now", (loc.here.text + (loc.townText?` ${loc.townText}`:"")).trim() || "Look around: nearby places with stories are tagged in the view.");
-  fill("c20", count("c20") ? `${count("c20")} places around you have 20th-century stories. Aim the reticle at one and hold steady to hear it.` : "No 20th-century stories found in the immediate area.");
-  fill("c19", count("c19") ? `${count("c19")} places around you have stories from the 1800s. Aim the reticle at one and hold steady to hear it.` : "No 1800s stories found in the immediate area.");
-  fill("colonial", count("colonial") ? `${count("colonial")} places around you date from before 1800. Aim the reticle at one and hold steady to hear it.` : "No pre-1800 sites found in the immediate area.");
+  fill("c20", count("c20") ? `${count("c20")} places around you have 20th-century stories. Aim the reticle at one and hold steady to hear it.` : "No 20th-century stories found in the immediate area.", true);
+  fill("c19", count("c19") ? `${count("c19")} places around you have stories from the 1800s. Aim the reticle at one and hold steady to hear it.` : "No 1800s stories found in the immediate area.", true);
+  fill("colonial", count("colonial") ? `${count("colonial")} places around you date from before 1800. Aim the reticle at one and hold steady to hear it.` : "No pre-1800 sites found in the immediate area.", true);
   fill("native", "Open data rarely covers Indigenous history well. native-land.ca maps whose traditional territory you're on; this is a layer a curated or AI-written source would fill.");
   fill("ice", "About 20,000 years ago, at the peak of the last Ice Age, sea level was roughly 120 meters lower and ice sheets covered much of North America and northern Europe. Local Ice Age detail needs a richer data source than this prototype uses.");
   fill("deep", "No geologic map unit was found for this spot.");
-
-  const wasNew = !S.loc || !S.loc.live;
-  if(wasNew) S.range = pickRange(loc.pois, fix);
-  setLocation(loc, {lat, lon});
-  setMode("live");
-  closeStart();
-  if(wasNew){
-    const n=loc.pois.filter(p=>dist(fix,p)<=S.range).length;
-    toast(n ? `${n} places with stories within ${fmtDist(S.range)}` : loc.osmFailed ? "OpenStreetMap didn't answer, so only Wikipedia places are shown" : "Nothing tagged in the immediate area yet", 4000, I.spark);
-  }
 }
 
 // Smallest view range that still shows a few tags; tap the range chip to change it
@@ -760,16 +793,16 @@ function pickRange(pois, at){
   for(const r of RANGES.slice(0,4)) if(pois.filter(p=>dist(at,p)<=r).length>=4) return r;
   return 1200;
 }
-const FETCH_R=2000, OSM_R=1200;
+const FETCH_R=2000, OSM_R=800;
 const OVERPASS=["https://overpass-api.de/api/interpreter","https://overpass.private.coffee/api/interpreter"];
 async function overpass(q){
   let last;
-  for(const u of OVERPASS){ try{ return await getJSON(u+"?data="+encodeURIComponent(q)); }catch(e){ last=e; } }
+  for(const u of OVERPASS){ try{ return await getJSON(u+"?data="+encodeURIComponent(q), 14000); }catch(e){ last=e; } }
   throw last;
 }
 function osmQuery(lat, lon, r){
   const A=`(around:${r},${lat},${lon})`;
-  return `[out:json][timeout:25];(
+  return `[out:json][timeout:12];(
 nwr${A}["historic"];
 nwr${A}["heritage"];
 nwr${A}["memorial"];
