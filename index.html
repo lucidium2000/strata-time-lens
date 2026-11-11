@@ -229,12 +229,51 @@ svg.i{width:18px;height:18px;flex:none;stroke:currentColor;fill:none;stroke-widt
 #start-bg{position:fixed;inset:0;width:100%;height:100%}
 #start-veil{position:fixed;inset:0;background:linear-gradient(180deg,rgba(5,7,11,.1) 0%,rgba(5,7,11,.55) 40%,rgba(5,7,11,.95) 75%)}
 .start-inner{position:relative;max-width:540px;margin:0 auto;display:grid;gap:16px;
-  padding:calc(36px + var(--safe-t)) max(18px,calc(18px + var(--safe-r))) calc(28px + var(--safe-b)) max(18px,calc(18px + var(--safe-l)));padding-top:calc(16vh + var(--safe-t))}
+  padding:calc(36px + var(--safe-t)) max(18px,calc(18px + var(--safe-r))) calc(28px + var(--safe-b)) max(18px,calc(18px + var(--safe-l)));padding-top:calc(7vh + var(--safe-t))}
 .kicker{font-family:var(--f-mono);font-size:10.5px;letter-spacing:.24em;text-transform:uppercase;color:var(--cyan);display:flex;gap:8px;align-items:center}
 .kicker::before{content:"";width:22px;height:1px;background:var(--cyan)}
 #start h1{margin:0;font-family:var(--f-display);font-weight:600;font-size:clamp(44px,13vw,76px);line-height:.95;letter-spacing:-.04em}
 #start h1 span{display:block;background:var(--spectrum);background-size:200% 100%;-webkit-background-clip:text;background-clip:text;color:transparent;animation:shimmer 6s linear infinite}
 .lede{margin:0;font-size:16px;color:#c9d3e1;max-width:42ch}
+.steps{list-style:none;margin:0;padding:0;display:grid;gap:10px}
+.steps li{display:grid;grid-template-columns:32px 1fr;gap:12px;align-items:center;font-size:15px;line-height:1.4;color:#c9d3e1}
+.steps b{color:var(--text);font-weight:700}
+.steps .n{width:32px;height:32px;border-radius:50%;display:grid;place-items:center;font-family:var(--f-display);font-size:13px;font-weight:600;color:var(--cyan);box-shadow:inset 0 0 0 1.5px rgba(103,232,249,.5);background:rgba(103,232,249,.08)}
+.steps .n svg{width:17px;height:17px}
+.cta-wrap{display:grid;gap:8px;justify-items:center;margin-top:6px}
+.cta-hint{font-family:var(--f-mono);font-size:11px;letter-spacing:.22em;text-transform:uppercase;color:var(--cyan);display:flex;flex-direction:column;align-items:center;gap:0;animation:bob 1.4s ease-in-out infinite}
+@keyframes bob{50%{transform:translateY(5px)}}
+.cta{position:relative;width:100%;min-height:66px;border-radius:999px;display:flex;align-items:center;justify-content:center;gap:12px;
+  font-family:var(--f-display);font-weight:600;font-size:20px;letter-spacing:-.01em;color:#05070b;background:linear-gradient(120deg,#67e8f9,#c08bff);animation:ctaPulse 2s ease-out infinite;transition:transform .15s}
+.cta:active{transform:scale(.97)}
+.cta-ico{display:grid;place-items:center}
+.cta-ico svg{width:26px;height:26px;stroke-width:2.2}
+@keyframes ctaPulse{0%{box-shadow:0 0 0 0 rgba(103,232,249,.6),0 10px 40px rgba(103,232,249,.35)}100%{box-shadow:0 0 0 20px rgba(103,232,249,0),0 10px 40px rgba(103,232,249,.35)}}
+.cta-note{margin:0;font-size:12.5px;color:var(--dim);text-align:center;max-width:44ch}
+
+/* Calibration + coach overlays */
+#calib,#coach{position:absolute;inset:0;z-index:45;display:grid;place-items:center;background:rgba(5,7,11,.74);
+  padding:calc(20px + var(--safe-t)) max(16px,calc(16px + var(--safe-r))) calc(20px + var(--safe-b)) max(16px,calc(16px + var(--safe-l)));animation:fade .25s ease}
+.ov-card{width:min(420px,100%);max-height:100%;overflow:auto;padding:22px 20px 18px;border-radius:28px;display:grid;gap:14px;background:var(--glass-hi)}
+.ov-card h3{margin:0;font-family:var(--f-display);font-weight:500;font-size:22px;line-height:1.15;letter-spacing:-.01em}
+.ov-card p{margin:0;font-size:15.5px;line-height:1.5;color:#d3dbe8}
+.calib-card{justify-items:center;text-align:center}
+.fig8{position:relative;width:220px;height:110px;max-width:100%}
+.fig8 svg{position:absolute;inset:0;width:100%;height:100%;overflow:visible}
+.fig8 .phone{position:absolute;left:0;top:0;width:26px;height:44px;border-radius:7px;border:2px solid var(--text);background:rgba(103,232,249,.18);
+  box-shadow:0 0 18px rgba(103,232,249,.55);offset-path:path("M110,55 C140,12 202,12 202,55 C202,98 140,98 110,55 C80,12 18,12 18,55 C18,98 80,98 110,55");
+  offset-rotate:0deg;animation:fig8 3.4s linear infinite}
+.fig8 .phone::after{content:"";position:absolute;left:50%;top:4px;width:8px;height:2px;margin-left:-4px;border-radius:2px;background:var(--text)}
+@keyframes fig8{to{offset-distance:100%}}
+.calib-st{display:flex;gap:10px;align-items:center;justify-content:center;font-size:13.5px;color:var(--dim);font-family:var(--f-mono)}
+.calib-st .ok{display:none;color:#7cf2b0}
+.calib-st.ready{color:#7cf2b0}
+.calib-st.ready .spin{display:none}
+.calib-st.ready .ok{display:inline-flex}
+.ov-actions{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;width:100%}
+.ov-actions .btn{min-height:44px;padding:10px 18px;font-size:14px}
+#calib-done.primary{animation:ctaPulse 2s ease-out infinite}
+
 .opt{display:grid;grid-template-columns:44px 1fr auto;gap:14px;align-items:center;text-align:left;padding:14px 16px 14px 14px;border-radius:20px;transition:transform .2s}
 .opt:active{transform:scale(.98)}
 .opt .ico{width:44px;height:44px;border-radius:14px;display:grid;place-items:center;background:rgba(238,243,251,.07);box-shadow:inset 0 0 0 1px var(--hair)}
@@ -343,6 +382,7 @@ svg.i{width:18px;height:18px;flex:none;stroke:currentColor;fill:none;stroke-widt
       <div id="story-head">
         <button id="story-toggle" aria-expanded="false" aria-controls="story-body"><span id="story-title">Today</span><span id="story-span"></span><svg class="i" viewBox="0 0 24 24" style="width:16px;height:16px"><path d="M6 15l6-6 6 6"/></svg></button>
         <button class="btn sm" id="auto-narr" aria-pressed="true" title="Speak a place's story after you aim at it for one second"></button>
+        <button class="btn sm icon" id="help-btn" aria-label="How to use" style="font-family:var(--f-display);font-weight:600">?</button>
         <button class="btn sm icon" id="change-place" aria-label="Change place"></button>
       </div>
       <div id="dial" role="group" aria-label="Travel through time">
@@ -388,11 +428,18 @@ svg.i{width:18px;height:18px;flex:none;stroke:currentColor;fill:none;stroke-widt
     <div class="start-inner">
       <div class="kicker">AR discovery for curious people</div>
       <h1>Strata<span>Time Lens</span></h1>
-      <p class="lede">Hold up your phone and the world around you turns into a museum. Tag what's here now, then slide back through centuries, ice ages and ancient seas.</p>
-      <div class="stack">
-        <button class="opt glass holo primary" id="go-live"><span class="ico" id="ico-live"></span><span><b>Launch live lens</b><span id="live-note">Camera, GPS and compass. Real history pulled for wherever you're standing.</span></span><span class="go" id="go-1"></span></button>
+      <p class="lede">Point your phone at the world around you and it becomes a museum, from today back to ancient seas.</p>
+      <ol class="steps" aria-label="How it works">
+        <li><span class="n">1</span><span><b>Tap Start exploring</b> and allow camera, location and motion</span></li>
+        <li><span class="n">2</span><span><b>Wave your phone in a figure 8</b> so the compass knows which way you face</span></li>
+        <li><span class="n">3</span><span><b>Aim at a label and hold still</b> to hear its story</span></li>
+      </ol>
+      <div class="cta-wrap">
+        <div class="cta-hint" aria-hidden="true">Tap to begin<svg class="i" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></div>
+        <button class="cta" id="go-live"><span class="cta-ico" id="ico-live"></span><span>Start exploring</span></button>
+        <p class="cta-note" id="live-note">Uses your camera, GPS and compass. Works best outdoors.</p>
       </div>
-      <div class="group-label">Demo places</div>
+      <div class="group-label">Or try a demo place · no sensors needed</div>
       <div class="stack" id="demo-list"></div>
       <div class="stack" id="any-place" hidden>
         <div class="group-label">Anywhere on Earth · written by Claude</div>
@@ -402,6 +449,34 @@ svg.i{width:18px;height:18px;flex:none;stroke:currentColor;fill:none;stroke-widt
         </form>
       </div>
       <p class="fine">Prototype. Demo places are hand-written. Claude-written places are AI-generated and can contain mistakes.</p>
+    </div>
+  </div>
+
+  <div id="calib" hidden>
+    <div class="ov-card calib-card glass holo" role="dialog" aria-modal="true" aria-labelledby="calib-title">
+      <div class="fig8" aria-hidden="true">
+        <svg viewBox="0 0 220 110"><defs><linearGradient id="f8g" x1="0" x2="1"><stop offset="0" stop-color="#67e8f9"/><stop offset="1" stop-color="#c08bff"/></linearGradient></defs>
+          <path d="M110,55 C140,12 202,12 202,55 C202,98 140,98 110,55 C80,12 18,12 18,55 C18,98 80,98 110,55" fill="none" stroke="url(#f8g)" stroke-width="2.5" stroke-dasharray="6 7" stroke-linecap="round" opacity=".8"/></svg>
+        <div class="phone"></div>
+      </div>
+      <h3 id="calib-title">Calibrate your compass</h3>
+      <p>Hold your phone out and slowly trace a big figure 8 in the air, two or three times. This tunes the compass so labels line up with the real places.</p>
+      <p class="fine" style="font-size:13px">Labels drifting later? Do it again any time. GPS works best outdoors, away from tall buildings.</p>
+      <div class="calib-st" id="calib-st"><span class="spin"></span><span class="ok"><svg class="i" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span><span id="calib-status">Finding your position…</span></div>
+      <div class="ov-actions"><button class="btn" id="calib-cancel">Cancel</button><button class="btn" id="calib-done">Done</button></div>
+    </div>
+  </div>
+
+  <div id="coach" hidden>
+    <div class="ov-card glass holo" role="dialog" aria-modal="true" aria-labelledby="coach-title">
+      <h3 id="coach-title">How to explore</h3>
+      <ul class="steps">
+        <li><span class="n" id="c-ico1"></span><span><b>Aim the center brackets</b> at a label and hold still. After a second, its story plays.</span></li>
+        <li><span class="n" id="c-ico2"></span><span><b>Tap any label</b> to open its card right where the place stands.</span></li>
+        <li><span class="n" id="c-ico3"></span><span><b>Slide the color bar</b> at the bottom to travel back in time.</span></li>
+        <li><span class="n" id="c-ico4"></span><span><b>Labels pointing the wrong way?</b> Wave your phone in a figure 8 again.</span></li>
+      </ul>
+      <div class="ov-actions"><button class="btn" id="coach-calib">Calibrate compass</button><button class="btn primary" id="coach-ok">Got it</button></div>
     </div>
   </div>
 
@@ -425,7 +500,7 @@ const I = {
   dome:'<svg class="i" viewBox="0 0 24 24"><path d="M4 20h16M6 20V11h12v9M9 20v-5M15 20v-5M12 4v3M8 11a4 4 0 0 1 8 0"/></svg>',
   globe:'<svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3 3.5 3 14.5 0 18M12 3c-3 3.5-3 14.5 0 18"/></svg>',
 };
-$q("#ico-live").innerHTML=I.lens; $q("#go-1").innerHTML=I.arrow;
+$q("#ico-live").innerHTML=I.lens;
 $q("#narrate-era").innerHTML=I.play+"<span>Narrate</span>";
 $q("#ask-era").innerHTML=I.spark+"<span>Ask Claude</span>";
 $q("#change-place").innerHTML=I.pin;
@@ -544,7 +619,9 @@ const card = h => ["N","NE","E","SE","S","SW","W","NW"][Math.round(h/45)%8];
 // ---------- UI helpers ----------
 let toastT;
 function toast(msg, ms=3800, icon=""){ const t=$("toast"); t.innerHTML=icon+`<span>${esc(msg)}</span>`; t.hidden=false; t.style.animation="none"; void t.offsetWidth; t.style.animation=""; clearTimeout(toastT); toastT=setTimeout(()=>t.hidden=true, ms); }
-function busy(msg, cancellable){ if(msg){ $("busy-text").textContent=msg; $("busy-cancel").hidden=!cancellable; $("busy").hidden=false; } else $("busy").hidden=true; }
+function busy(msg, cancellable){
+  if(!$("calib").hidden && calibMode==="start"){ if(msg) setCalibStatus(msg,false); else if(S.loc&&S.loc.live) setCalibStatus("Lens ready", true); return; }
+  if(msg){ $("busy-text").textContent=msg; $("busy-cancel").hidden=!cancellable; $("busy").hidden=false; } else $("busy").hidden=true; }
 
 // ---------- Discovery progress (per viewer, this browser only) ----------
 function discKey(){ return "strata:disc:" + (S.loc?.key || S.loc?.name || "x"); }
@@ -566,12 +643,51 @@ if (hasClaude) $("live-note").textContent = "This Claude preview blocks the came
 function unlockSpeech(){ try{ if("speechSynthesis" in window && !ttsApi){ const u=new SpeechSynthesisUtterance(" "); u.volume=0; speechSynthesis.speak(u); } }catch{} }
 document.addEventListener("click", e=>{ if(e.target.closest("#start button, #start form")) unlockSpeech(); }, true);
 $("go-live").onclick = startLive;
-$("busy-cancel").onclick = () => {
-  loadSeq++; busy(null); clearTimeout(gpsSlowT);
+function cancelLive(){
+  loadSeq++; hideCalib(); busy(null); clearTimeout(gpsSlowT);
   if(gpsWatch!=null){ navigator.geolocation.clearWatch(gpsWatch); gpsWatch=null; }
   S.lastLiveFix=null; stopCamera();
   $("start").hidden=false; startBg();
+}
+$("busy-cancel").onclick = cancelLive;
+
+// ---------- Calibration screen (shown while GPS finds you) and the tips card ----------
+let calibMode=null, lastCalibHint=0;
+function showCalib(mode){
+  calibMode=mode; $("calib").hidden=false;
+  const d=$("calib-done"); d.classList.remove("primary");
+  d.textContent = mode==="manual" ? "Done" : "Done waving";
+  $("calib-cancel").textContent = mode==="manual" ? "Close" : "Cancel";
+  const st=$("calib-st"); st.classList.remove("ready");
+  if(mode==="manual"){ st.hidden=true; } else { st.hidden=false; $("calib-status").textContent="Finding your position…"; }
+  d.focus();
+}
+function setCalibStatus(msg, ready){
+  const st=$("calib-st"); st.hidden=false; $("calib-status").textContent=msg; st.classList.toggle("ready", !!ready);
+  if(ready){ const d=$("calib-done"); d.textContent="Start exploring"; d.classList.add("primary"); }
+}
+function hideCalib(){ $("calib").hidden=true; }
+$("calib-done").onclick=()=>{
+  const m=calibMode; hideCalib();
+  if(m!=="start") return;
+  if(S.loc && S.loc.live && $("calib-st").classList.contains("ready")) maybeCoach();
+  else busy($("calib-status").textContent || "Finding your position…", true);
 };
+$("calib-cancel").onclick=()=>{ if(calibMode==="start") cancelLive(); else hideCalib(); };
+function showCoach(){ $("coach").hidden=false; $("coach-ok").focus(); }
+function maybeCoach(){ let seen=false; try{ seen=!!localStorage.getItem("strata:coach"); }catch{} if(!seen) showCoach(); }
+$("coach-ok").onclick=()=>{ $("coach").hidden=true; try{ localStorage.setItem("strata:coach","1"); }catch{} };
+$("coach-calib").onclick=()=>{ $("coach").hidden=true; try{ localStorage.setItem("strata:coach","1"); }catch{} showCalib("manual"); };
+$("help-btn").onclick=showCoach;
+$("c-ico1").innerHTML='<svg class="i" viewBox="0 0 24 24"><path d="M4 8V6a2 2 0 0 1 2-2h2M16 4h2a2 2 0 0 1 2 2v2M20 16v2a2 2 0 0 1-2 2h-2M8 20H6a2 2 0 0 1-2-2v-2"/><circle cx="12" cy="12" r="1.5"/></svg>';
+$("c-ico2").innerHTML='<svg class="i" viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="11" rx="3"/><path d="M12 16v4"/></svg>';
+$("c-ico3").innerHTML='<svg class="i" viewBox="0 0 24 24"><path d="M3 12h18"/><circle cx="9" cy="12" r="3"/></svg>';
+$("c-ico4").innerHTML='<svg class="i" viewBox="0 0 24 24"><path d="M12 12c-2-3-6-3-6 0s4 3 6 0 6-3 6 0-4 3-6 0z"/></svg>';
+function calibHint(){
+  const now=Date.now();
+  if(now-lastCalibHint<60000 || !S.loc || !$("calib").hidden || !$("coach").hidden) return;
+  lastCalibHint=now; toast("Compass is unsure. Wave your phone in a figure 8.", 4500);
+}
 $("any-form").onsubmit = e => { e.preventDefault(); const q=$("any-input").value.trim(); if(q) startClaudePlace(q); };
 $("change-place").onclick = () => { stopSpeech(); $("start").hidden=false; startBg(); };
 
@@ -584,7 +700,8 @@ function startDemo(d){
   S.range=pickRange(d.pois, d);
   setLocation(structuredClone(d), {lat:d.lat, lon:d.lon});
   faceNearest(); setMode("demo"); closeStart();
-  toast("Drag to look around · slide the spectrum to time-travel", 4200, I.lens);
+  let seen=false; try{ seen=!!localStorage.getItem("strata:coach"); }catch{}
+  if(seen) toast("Drag to look around · slide the color bar to time-travel", 4200, I.lens); else showCoach();
 }
 function closeStart(){ $("start").hidden=true; }
 
@@ -636,9 +753,9 @@ async function startLive(){
   }
 
   if(!("geolocation" in navigator)){ toast("This browser has no GPS access. Try a demo place."); return; }
-  busy("Finding your position…", true);
+  showCalib("start");
   clearTimeout(gpsSlowT);
-  gpsSlowT=setTimeout(()=>{ if(!S.lastLiveFix && !$("busy").hidden) busy("Still waiting for GPS. Step outside or near a window, or cancel and try a demo place.", true); }, 12000);
+  gpsSlowT=setTimeout(()=>{ if(!S.lastLiveFix && (!$("busy").hidden || !$("calib").hidden)) busy("Still waiting for GPS. Step outside or near a window, or cancel and try a demo place.", true); }, 12000);
   if(gpsWatch!=null) navigator.geolocation.clearWatch(gpsWatch);
   gpsWatch = navigator.geolocation.watchPosition(pos => {
     const fix={lat:pos.coords.latitude, lon:pos.coords.longitude, acc:pos.coords.accuracy};
@@ -647,7 +764,7 @@ async function startLive(){
     updatePlaceSub();
   }, err => {
     if(S.lastLiveFix) return;              // a later hiccup; keep the lens running
-    busy(null);
+    hideCalib(); busy(null);
     toast(err.code===1 ? "Location permission was declined. Try a demo place instead." : "Couldn't get a GPS fix. Try a demo place instead.", 5000);
     if(!S.loc) { $("start").hidden=false; startBg(); }
   }, {enableHighAccuracy:true, maximumAge:15000, timeout:25000});
@@ -656,7 +773,8 @@ let gpsWatch=null, gpsSlowT=0;
 
 function onOrient(e){
   let h=null;
-  if (typeof e.webkitCompassHeading==="number") h=e.webkitCompassHeading;           // iOS
+  if (typeof e.webkitCompassHeading==="number"){ h=e.webkitCompassHeading;          // iOS
+    if(typeof e.webkitCompassAccuracy==="number" && (e.webkitCompassAccuracy<0 || e.webkitCompassAccuracy>30)) calibHint(); }
   else if ((e.absolute || e.type==="deviceorientationabsolute") && e.alpha!=null){   // Android
     const a=rad(e.alpha), b=rad(e.beta||0), g=rad(e.gamma||0);
     const east = -(Math.cos(g)*Math.sin(a)*Math.sin(b) + Math.cos(a)*Math.sin(g));
@@ -728,7 +846,7 @@ async function loadLive(fix){
     setLocation(loc, {lat, lon});
     setMode("live");
     closeStart();
-    if(firstLoad) toast("Lens ready · adding nearby markers and landmarks…", 3500, I.spark);
+    if(firstLoad){ toast("Lens ready · adding nearby markers and landmarks…", 3500, I.spark); if($("calib").hidden) maybeCoach(); }
   }catch(e){
     console.error(e);
   }finally{
