@@ -227,6 +227,25 @@ svg.i{width:18px;height:18px;flex:none;stroke:currentColor;fill:none;stroke-widt
 #busy > div{padding:16px 20px;border-radius:20px;font-size:14px;display:flex;gap:12px;align-items:center}
 .spin{width:18px;height:18px;border-radius:50%;border:2px solid transparent;border-top-color:var(--cyan);border-right-color:#c08bff;animation:spin .9s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
+/* Auto-narration */
+#lockcall{overflow:hidden}
+#lockcall .fill{position:absolute;left:0;bottom:0;height:2px;width:100%;background:var(--lc,var(--cyan));transform-origin:0 50%;transform:scaleX(0)}
+#lockcall.arming .fill{animation:fillbar 1s linear forwards}
+@keyframes fillbar{to{transform:scaleX(1)}}
+.tag.speaking .tag-ring{animation-duration:.9s;border-width:2px}
+.tag.speaking .tag-card{box-shadow:0 0 0 2px var(--c),0 10px 30px rgba(0,0,0,.45),0 0 48px color-mix(in srgb,var(--c) 60%,transparent)}
+#np{position:absolute;left:calc(12px + var(--safe-l));right:calc(12px + var(--safe-r));bottom:var(--np-b,calc(var(--dock-h) + 10px));z-index:6;
+  display:grid;grid-template-columns:auto 1fr auto;gap:12px;align-items:center;padding:8px 8px 8px 14px;border-radius:18px;animation:pop .35s cubic-bezier(.2,1.4,.4,1)}
+#np-open{text-align:left;min-width:0;display:grid}
+#np-open small{font-family:var(--f-mono);font-size:9.5px;letter-spacing:.2em;text-transform:uppercase;color:var(--npc,var(--cyan))}
+#np-open b{font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.eq{display:flex;gap:3px;align-items:flex-end;height:18px}
+.eq i{width:3px;border-radius:2px;background:var(--npc,var(--cyan));animation:eq .9s ease-in-out infinite}
+.eq i:nth-child(2){animation-delay:-.3s}.eq i:nth-child(3){animation-delay:-.6s}.eq i:nth-child(4){animation-delay:-.15s}
+@keyframes eq{0%,100%{height:4px}50%{height:18px}}
+#auto-narr[aria-pressed="true"]{background:linear-gradient(120deg,rgba(103,232,249,.22),rgba(192,139,255,.18));box-shadow:inset 0 0 0 1px rgba(103,232,249,.55);color:#dffaff}
+#range-chip{font-family:var(--f-mono);font-size:10px;letter-spacing:.06em;color:var(--cyan);padding:2px 8px;border-radius:999px;box-shadow:inset 0 0 0 1px rgba(103,232,249,.4);white-space:nowrap}
+@media (min-width:760px){ #np{left:50%;right:auto;transform:translateX(-50%);width:min(680px,calc(100% - 24px))} }
 @media (prefers-reduced-motion:reduce){
   *,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}
 }
@@ -259,7 +278,7 @@ svg.i{width:18px;height:18px;flex:none;stroke:currentColor;fill:none;stroke-widt
 
   <header id="hud">
     <div id="place" class="glass holo">
-      <div id="place-top"><span id="mode-dot"></span><span id="mode-label">Demo</span><span id="mode-label-h" class="mono" style="font-size:10px;color:var(--dim);margin-left:auto"></span></div>
+      <div id="place-top"><span id="mode-dot"></span><span id="mode-label">Demo</span><button id="range-chip" title="How far to look. Tap to change.">◎ 400 m</button><span id="mode-label-h" class="mono" style="font-size:10px;color:var(--dim);margin-left:auto"></span></div>
       <div id="place-name">Strata</div>
       <div id="place-sub">—</div>
     </div>
@@ -278,6 +297,12 @@ svg.i{width:18px;height:18px;flex:none;stroke:currentColor;fill:none;stroke-widt
     <svg class="i" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg>
   </button>
 
+  <div id="np" class="glass holo" hidden>
+    <span class="eq" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
+    <button id="np-open"><small>Narrating</small><b id="np-name"></b></button>
+    <button class="btn icon" id="np-stop" aria-label="Stop narration"></button>
+  </div>
+
   <section id="dock">
     <div id="dial" class="glass holo" role="group" aria-label="Travel through time">
       <div id="dial-track"><div id="dial-ticks"></div><div id="dial-knob"></div></div>
@@ -288,6 +313,7 @@ svg.i{width:18px;height:18px;flex:none;stroke:currentColor;fill:none;stroke-widt
       <div id="story-text" title="Tap to expand"></div>
       <div class="row">
         <button class="btn" id="narrate-era"></button>
+        <button class="btn" id="auto-narr" aria-pressed="true" title="Speak a place's story after you aim at it for one second"></button>
         <button class="btn ai" id="ask-era" hidden></button>
         <span class="spacer"></span>
         <button class="btn icon" id="change-place" aria-label="Change place"></button>
@@ -456,7 +482,8 @@ const DEMOS = [
 const S = {
   loc:null, era:"now", heading:0, headingTarget:0, pitch:90,
   fov:60, user:{lat:0, lon:0}, live:false, cam:false, compass:false,
-  labels:[], dragging:null, lastLiveFix:null, locked:null, yearShown:0
+  labels:[], dragging:null, lastLiveFix:null, locked:null, yearShown:0,
+  range:600, autoNarr:true, lockSince:0
 };
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -505,6 +532,8 @@ DEMOS.forEach((d,i) => {
   b.onclick=()=>startDemo(d); $("demo-list").append(b);
 });
 if (hasClaude) $("live-note").textContent = "This Claude preview blocks the camera and GPS, so you'll see the simulated lens. Open the GitHub Pages link on your phone for the real thing.";
+function unlockSpeech(){ try{ if("speechSynthesis" in window && !ttsApi){ const u=new SpeechSynthesisUtterance(" "); u.volume=0; speechSynthesis.speak(u); } }catch{} }
+document.addEventListener("click", e=>{ if(e.target.closest("#start button, #start form")) unlockSpeech(); }, true);
 $("go-live").onclick = startLive;
 $("any-form").onsubmit = e => { e.preventDefault(); const q=$("any-input").value.trim(); if(q) startClaudePlace(q); };
 $("change-place").onclick = () => { stopSpeech(); $("start").hidden=false; startBg(); };
@@ -515,6 +544,7 @@ function faceNearest(){
 }
 function startDemo(d){
   S.live=false; stopCamera();
+  S.range=pickRange(d.pois, d);
   setLocation(structuredClone(d), {lat:d.lat, lon:d.lon});
   faceNearest(); setMode("demo"); closeStart();
   toast("Drag to look around · slide the spectrum to time-travel", 4200, I.lens);
@@ -533,7 +563,7 @@ Return ONLY a JSON object with this shape:
  "eras": {"now":{"text":...}, "c20":{"text":...}, "c19":{"text":...}, "colonial":{"span":"short date range label fitting local history","text":...}, "native":{"span":..., "text":...}, "ice":{"text":...}, "deep":{"span":"age label","text":...}},
  "ground": {"ice":{"name":..., "text":"one short line", "story":"2-3 sentences"}, "deep":{"name": the bedrock or geologic setting, "text":"one short line with its age", "story":"2-3 sentences"}},
  "pois": [ {"name":..., "lat":..., "lon":..., "era":"now|c20|c19|colonial|native", "year":"short year label", "fact":"one sentence", "story":"3-4 sentences"} ]}
-Rules: 7-10 real landmarks or historic sites within 4 km with accurate coordinates, spread across eras. Era texts are 2-3 concrete sentences specific to this location. Outside the Americas, use "colonial" for the early-modern period (about 1500-1799) and "native" for ancient or pre-modern peoples; set their span labels to match. Only state facts you're confident about; if local detail is thin, describe what is true of the wider region and say so.`;
+Rules: 8-12 real landmarks, buildings, markers or historic sites within 800 m of the standing spot (things a visitor could see or walk to), with accurate coordinates, spread across eras. Era texts are 2-3 concrete sentences specific to this location. Outside the Americas, use "colonial" for the early-modern period (about 1500-1799) and "native" for ancient or pre-modern peoples; set their span labels to match. Only state facts you're confident about; if local detail is thin, describe what is true of the wider region and say so.`;
   try{
     const data = await sampleFn.json(prompt, {modelTier:"default"});
     if(!data || typeof data.lat!=="number" || !Array.isArray(data.pois)) throw new Error("bad");
@@ -541,6 +571,7 @@ Rules: 7-10 real landmarks or historic sites within 4 km with accurate coordinat
     if(typeof data.deepYearsAgo==="number") data.deepYa=data.deepYearsAgo;
     data.source = "claude"; data.key = "ai:"+q.toLowerCase();
     busy(null); S.live=false; stopCamera();
+    S.range=pickRange(data.pois, data);
     setLocation(data, {lat:data.lat, lon:data.lon});
     faceNearest(); setMode("claude"); closeStart();
   }catch(err){
@@ -619,18 +650,25 @@ async function loadLive(fix){
     }
   }).catch(()=>{}));
 
-  tasks.push(getJSON(`https://en.wikipedia.org/w/api.php?action=query&generator=geosearch&ggscoord=${lat}|${lon}&ggsradius=10000&ggslimit=40&prop=coordinates|extracts|pageimages&exintro=1&explaintext=1&exsentences=4&exlimit=40&piprop=thumbnail&pithumbsize=480&format=json&origin=*`).then(d => {
-    const pages=Object.values((d.query&&d.query.pages)||{});
-    for(const p of pages){
+  // Wikipedia: only point-like articles close by. Skip cities, counties and regions,
+  // whose coordinates point at a center that may be far away.
+  const wiki=[], osm=[], wikiWanted=new Set();
+  tasks.push(getJSON(`https://en.wikipedia.org/w/api.php?action=query&generator=geosearch&ggscoord=${lat}|${lon}&ggsradius=${FETCH_R}&ggslimit=50&prop=coordinates|extracts|pageimages&coprop=type|dim&exintro=1&explaintext=1&exsentences=5&exlimit=50&piprop=thumbnail&pithumbsize=480&format=json&origin=*`).then(d => {
+    for(const p of Object.values((d.query&&d.query.pages)||{})){
       const c=p.coordinates&&p.coordinates[0]; if(!c) continue;
-      const text=p.extract||"";
-      const years=[...text.matchAll(/\b(1[0-9]{3}|20[0-2][0-9])\b/g)].map(m=>+m[1]);
-      const y=years.length?Math.min(...years):null;
-      const era = y==null?"now" : y>=2000?"now" : y>=1900?"c20" : y>=1800?"c19" : y>=1500?"colonial" : "native";
-      const sentences=text.split(/(?<=\.)\s/);
-      loc.pois.push({ name:p.title, lat:c.lat, lon:c.lon, era, year:y?String(y):"", fact:sentences[0]||"", story:sentences.slice(1).join(" ")||"", img:p.thumbnail&&p.thumbnail.source, link:`https://en.wikipedia.org/?curid=${p.pageid}` });
+      if(/^(city|adm|country|state|region|continent|isle|waterbody|river|mountain)/i.test(c.type||"")) continue;
+      if((c.dim||0) > 2500) continue;
+      wiki.push(poiFromWiki(p, c.lat, c.lon));
     }
   }).catch(()=>{}));
+
+  // OpenStreetMap: historic features, markers and plaques, memorials, dated buildings, churches, art
+  tasks.push(overpass(osmQuery(lat, lon, OSM_R)).then(d => {
+    for(const el of d.elements||[]){
+      const p=poiFromOsm(el); if(!p) continue;
+      osm.push(p); if(p.wikiTitle) wikiWanted.add(p.wikiTitle);
+    }
+  }).catch(()=>{ loc.osmFailed=true; }));
 
   tasks.push(getJSON(`https://macrostrat.org/api/v2/geologic_units/map?lat=${lat}&lng=${lon}`).then(d => {
     const u=d.success&&d.success.data&&d.success.data[0]; if(!u) return;
@@ -642,23 +680,115 @@ async function loadLive(fix){
   }).catch(()=>{}));
 
   await Promise.all(tasks);
+
+  // Pull Wikipedia summaries for OSM features that link to an article
+  const already=new Set(wiki.map(w=>w.name));
+  const titles=[...wikiWanted].filter(t=>!already.has(t)).slice(0,40);
+  for(let i=0;i<titles.length;i+=20){
+    try{
+      const d=await getJSON(`https://en.wikipedia.org/w/api.php?action=query&titles=${encodeURIComponent(titles.slice(i,i+20).join("|"))}&redirects=1&prop=extracts|pageimages&exintro=1&explaintext=1&exsentences=5&exlimit=20&piprop=thumbnail&pithumbsize=480&format=json&origin=*`);
+      const redir=Object.fromEntries(((d.query&&d.query.redirects)||[]).map(r=>[r.to,r.from]));
+      for(const p of Object.values((d.query&&d.query.pages)||{})){
+        if(!p.extract) continue;
+        const o=osm.find(x=>x.wikiTitle===p.title || x.wikiTitle===redir[p.title]); if(!o) continue;
+        const w=poiFromWiki(p, o.lat, o.lon);
+        Object.assign(o, { fact:w.fact, story:[w.story, o.story].filter(Boolean).join(" "), img:w.img, link:w.link, year:o.year||w.year, src:"osm+wiki" });
+      }
+    }catch{}
+  }
+  // Merge: an OSM feature and a Wikipedia article about the same thing become one tag
+  const norm=s=>String(s).toLowerCase().replace(/[^a-z0-9]/g,"");
+  for(const w of wiki){
+    const twin=osm.find(o => (o.wikiTitle===w.name || norm(o.name)===norm(w.name)) && dist(o,w)<300);
+    if(twin){ if(!twin.img){ Object.assign(twin,{fact:w.fact, story:[w.story,twin.story].filter(Boolean).join(" "), img:w.img, link:w.link, year:twin.year||w.year}); } }
+    else osm.push(w);
+  }
+  loc.pois = osm.map(p => ({...p, era: p.era || eraOf(p.year)}))
+                .sort((a,b)=>dist(fix,a)-dist(fix,b)).slice(0,70);
   busy(null);
 
   const count = id => loc.pois.filter(p=>p.era===id).length;
   const fill = (id, txt) => { if(!loc.eras[id]) loc.eras[id]={text:txt}; };
   fill("now", (loc.here.text + (loc.townText?` ${loc.townText}`:"")).trim() || "Look around: nearby places with stories are tagged in the view.");
-  fill("c20", count("c20") ? `${count("c20")} nearby places have 20th-century stories. Center one in the reticle to lock on.` : "No 20th-century stories found within 10 km.");
-  fill("c19", count("c19") ? `${count("c19")} nearby places have stories from the 1800s. Center one in the reticle to lock on.` : "No 1800s stories found within 10 km.");
-  fill("colonial", count("colonial") ? `${count("colonial")} nearby places date from before 1800. Center one in the reticle to lock on.` : "No pre-1800 sites found nearby in Wikipedia.");
+  fill("c20", count("c20") ? `${count("c20")} places around you have 20th-century stories. Aim the reticle at one and hold steady to hear it.` : "No 20th-century stories found in the immediate area.");
+  fill("c19", count("c19") ? `${count("c19")} places around you have stories from the 1800s. Aim the reticle at one and hold steady to hear it.` : "No 1800s stories found in the immediate area.");
+  fill("colonial", count("colonial") ? `${count("colonial")} places around you date from before 1800. Aim the reticle at one and hold steady to hear it.` : "No pre-1800 sites found in the immediate area.");
   fill("native", "Open data rarely covers Indigenous history well. native-land.ca maps whose traditional territory you're on; this is a layer a curated or AI-written source would fill.");
   fill("ice", "About 20,000 years ago, at the peak of the last Ice Age, sea level was roughly 120 meters lower and ice sheets covered much of North America and northern Europe. Local Ice Age detail needs a richer data source than this prototype uses.");
   fill("deep", "No geologic map unit was found for this spot.");
 
   const wasNew = !S.loc || !S.loc.live;
+  if(wasNew) S.range = pickRange(loc.pois, fix);
   setLocation(loc, {lat, lon});
   setMode("live");
   closeStart();
-  if(wasNew) toast(loc.pois.length ? `${loc.pois.length} places with stories within 10 km` : "No Wikipedia places found nearby", 3800, I.spark);
+  if(wasNew){
+    const n=loc.pois.filter(p=>dist(fix,p)<=S.range).length;
+    toast(n ? `${n} places with stories within ${fmtDist(S.range)}` : loc.osmFailed ? "OpenStreetMap didn't answer, so only Wikipedia places are shown" : "Nothing tagged in the immediate area yet", 4000, I.spark);
+  }
+}
+
+// Smallest view range that still shows a few tags; tap the range chip to change it
+const RANGES=[150,300,600,1200,2500];
+function pickRange(pois, at){
+  for(const r of RANGES.slice(0,4)) if(pois.filter(p=>dist(at,p)<=r).length>=4) return r;
+  return 1200;
+}
+const FETCH_R=2000, OSM_R=1200;
+const OVERPASS=["https://overpass-api.de/api/interpreter","https://overpass.private.coffee/api/interpreter"];
+async function overpass(q){
+  let last;
+  for(const u of OVERPASS){ try{ return await getJSON(u+"?data="+encodeURIComponent(q)); }catch(e){ last=e; } }
+  throw last;
+}
+function osmQuery(lat, lon, r){
+  const A=`(around:${r},${lat},${lon})`;
+  return `[out:json][timeout:25];(
+nwr${A}["historic"];
+nwr${A}["heritage"];
+nwr${A}["memorial"];
+nwr${A}["tourism"~"museum|artwork|attraction|gallery|viewpoint"]["name"];
+nwr${A}["amenity"~"place_of_worship|theatre|library|townhall|fountain|cinema|marketplace"]["name"];
+nwr${A}["building"]["name"]["start_date"];
+nwr${A}["wikipedia"]["name"];
+nwr${A}["shop"="mall"]["name"];
+nwr${A}["leisure"="park"]["name"];
+nwr${A}["railway"="station"]["name"];
+);out center tags 250;`;
+}
+const human = s => String(s||"").replace(/[_:;]/g," ").replace(/\s+/g," ").trim();
+const cap = s => s ? s[0].toUpperCase()+s.slice(1) : s;
+const yearIn = s => { const m=String(s||"").match(/\b(1[0-9]{3}|20[0-2][0-9])\b/); return m?m[1]:""; };
+function eraOf(y){ y=+y; return !y?"now" : y>=2000?"now" : y>=1900?"c20" : y>=1800?"c19" : y>=1500?"colonial" : "native"; }
+function poiFromWiki(p, lat, lon){
+  const text=p.extract||"";
+  const years=[...text.matchAll(/\b(1[0-9]{3}|20[0-2][0-9])\b/g)].map(m=>+m[1]);
+  const y=years.length?String(Math.min(...years)):"";
+  const sentences=text.split(/(?<=\.)\s/);
+  return { name:p.title, lat, lon, year:y, fact:sentences[0]||"", story:sentences.slice(1).join(" "), img:p.thumbnail&&p.thumbnail.source, link:`https://en.wikipedia.org/?curid=${p.pageid}`, src:"wikipedia" };
+}
+function poiFromOsm(el){
+  const t=el.tags||{}, la=el.lat??el.center?.lat, lo=el.lon??el.center?.lon;
+  if(la==null||lo==null) return null;
+  const kindRaw = t.historic==="memorial" && t.memorial ? t.memorial : (t.historic||t.memorial||t.tourism||t.amenity||t.shop||t.leisure||t.railway||(t.building&&t.building!=="yes"?t.building:"")||"landmark");
+  const kind = cap(human(kindRaw)==="yes" ? "historic site" : human(kindRaw));
+  const name = t.name || t["old_name"] || (t.inscription || t.historic ? kind : "");
+  if(!name) return null;
+  if(!t.name && !t.inscription && !t.description) return null;            // unnamed and nothing to say
+  const year = yearIn(t.start_date) || yearIn(t["construction_date"]) || yearIn(t["memorial:date"]) || yearIn(t.inscription) || yearIn(t.description);
+  const bits=[];
+  if(t.inscription) bits.push(`The marker reads: “${t.inscription.trim()}”`);
+  if(t.description) bits.push(t.description.trim().replace(/([^.])$/,"$1."));
+  if(t.start_date) bits.push(`Built or established: ${t.start_date}.`);
+  if(t.architect) bits.push(`Architect: ${t.architect}.`);
+  if(t["artist_name"]||t.artist) bits.push(`Artist: ${t["artist_name"]||t.artist}.`);
+  if(t["subject"]) bits.push(`It honors ${t.subject}.`);
+  if(t.heritage) bits.push(`Listed as a protected heritage site${t["heritage:operator"]?` (${t["heritage:operator"].toUpperCase()})`:""}.`);
+  if(t.old_name && t.name) bits.push(`Formerly known as ${t.old_name}.`);
+  if(t.denomination) bits.push(`${cap(human(t.denomination))} congregation.`);
+  const fact = `${kind}${year?`, from ${year}`:""}${t["addr:street"]?` on ${t["addr:street"]}`:""}.`;
+  const wt = t.wikipedia && /^en:/.test(t.wikipedia) ? t.wikipedia.slice(3) : "";
+  return { name, kind, lat:la, lon:lo, year, fact, story:bits.join(" "), link:`https://www.openstreetmap.org/${el.type}/${el.id}`, wikiTitle:wt, src:"osm" };
 }
 
 function stopCamera(){
@@ -671,8 +801,11 @@ function stopCamera(){
 function setLocation(loc, user){
   S.loc=loc; S.user={...user};
   $("place-name").textContent=loc.here?.title || loc.name;
-  updatePlaceSub(); buildDial(); updateDisc(); setEra(S.era, true);
+  updatePlaceSub(); buildDial(); updateDisc(); updateRangeChip(); setEra(S.era, true);
 }
+function updateRangeChip(){ $("range-chip").textContent=`◎ ${fmtDist(S.range)}`; }
+$("range-chip").onclick=()=>{ const i=RANGES.indexOf(S.range); S.range=RANGES[(i+1)%RANGES.length]; updateRangeChip(); buildLabels();
+  const n=visiblePois().length; toast(`Looking ${fmtDist(S.range)} out · ${n} place${n===1?"":"s"}`, 2200); };
 function updatePlaceSub(){
   if(!S.loc) return;
   $("place-sub").textContent = `${S.loc.sub ? S.loc.sub+" · " : ""}${S.user.lat.toFixed(4)}, ${S.user.lon.toFixed(4)}`;
@@ -707,7 +840,7 @@ function buildDial(){
 
 function eraYa(id){ return id==="deep" ? (S.loc?.deepYa || ERA.deep.ya) : ERA[id].ya; }
 function setEra(id, quiet){
-  const changed = id!==S.era; S.era=id; stopSpeech();
+  const changed = id!==S.era; S.era=id; stopSpeech(); narrPoi=null;
   const e=ERA[id], loc=S.loc; if(!loc) return;
   document.documentElement.style.setProperty("--era", e.color);
   const i=ERAS.findIndex(x=>x.id===id);
@@ -750,7 +883,8 @@ function animateYear(target){
   yearAnim=requestAnimationFrame(step);
 }
 
-function measureDock(){ document.documentElement.style.setProperty("--dock-h", $("dock").offsetHeight+"px"); }
+function measureDock(){ const dh=$("dock").offsetHeight, g=$("ground"); document.documentElement.style.setProperty("--dock-h", dh+"px");
+  document.documentElement.style.setProperty("--np-b", (dh+10+(g.hidden?0:g.offsetHeight+10))+"px"); }
 $("story-text").onclick = () => { $("story-text").classList.toggle("open"); requestAnimationFrame(measureDock); };
 window.addEventListener("resize", () => { measureDock(); sizeCanvases(); });
 
@@ -771,7 +905,7 @@ function applyTint(id){
 // ---------- AR tags ----------
 function visiblePois(){
   const all=(S.loc?.pois)||[];
-  const within = all.filter(p => dist(S.user,p) < 12000);
+  const within = all.filter(p => dist(S.user,p) <= S.range);
   return S.era==="now" ? within : within.filter(p => p.era===S.era);
 }
 function badgeText(p){ const y=(p.year||"").match(/\d{4}/); return y ? "’"+y[0].slice(2) : ERA[p.era].short.slice(0,3); }
@@ -790,8 +924,8 @@ function buildLabels(){
 
 // ---------- Detail sheet ----------
 let sheetPoi=null;
-function openPoi(p){
-  sheetPoi=p; stopSpeech();
+function openPoi(p, opts={}){
+  sheetPoi=p; if(!(opts.keepAudio && narrPoi===p && speaking)) stopSpeech();
   const d=dist(S.user,p), b=bearing(S.user,p), c=eraColor(p.era);
   $("sheet-card").style.setProperty("--c", c);
   const pill=$("sheet-era"); pill.style.setProperty("--c", c); pill.textContent=ERA[p.era].label;
@@ -821,13 +955,14 @@ function openPoi(p){
               : ["What did it look like back then?","Who was involved?","What's a surprising fact?"];
   $("ask-suggest").innerHTML=""; sugg.forEach(s=>{ const b=document.createElement("button"); b.textContent=s; b.onclick=()=>{ $("ask-input").value=s; $("ask-go").click(); }; $("ask-suggest").append(b); });
   $("sheet").hidden=false; $("sheet-card").scrollTop=0; $("sheet-close").focus();
+  if(S.autoNarr && !(opts.keepAudio && narrPoi===p && speaking)) narratePoi(p, "sheet");
 }
 function closeSheet(){ $("sheet").hidden=true; stopSpeech(); sheetPoi=null; if(askCtl) askCtl.abort(); }
 $("sheet-close").onclick=closeSheet;
 $("sheet").onclick=e=>{ if(e.target.id==="sheet") closeSheet(); };
 document.addEventListener("keydown", e => { if(e.key==="Escape" && !$("sheet").hidden) closeSheet(); });
 $("ground").onclick=()=>{ const g=S.loc.ground[S.era]; openPoi({ name:g.name, era:S.era, year:"", big:fmtYear(eraYa(S.era))[0], fact:g.text, story:g.story||"", ground:true, color:g.color, lat:S.user.lat, lon:S.user.lon }); };
-$("lockcall").onclick=()=>{ if(S.locked) openPoi(S.locked.p); };
+$("lockcall").onclick=()=>{ if(S.locked) openPoi(S.locked.p, {keepAudio:true}); };
 
 let askCtl=null;
 async function askClaude(question, context, out){
@@ -856,20 +991,54 @@ $("ask-era").onclick=()=>{
 };
 
 // ---------- Narration ----------
-let speaking=false;
-function setNarrBtns(on){ const h=(on?I.stop:I.play)+`<span>${on?"Stop":"Narrate"}</span>`; $("narrate-era").innerHTML=on&&speakingFrom==="era"?h:I.play+"<span>Narrate</span>"; $("sheet-narrate").innerHTML=on&&speakingFrom==="sheet"?h:I.play+"<span>Narrate</span>"; }
-let speakingFrom="";
-function stopSpeech(){ speaking=false; try{ ttsApi&&ttsApi.stop(); }catch{} try{ window.speechSynthesis&&speechSynthesis.cancel(); }catch{} setNarrBtns(false); }
-async function speak(text, from){
-  if(speaking){ stopSpeech(); return; }
-  speaking=true; speakingFrom=from; setNarrBtns(true);
-  const done=()=>{ if(speaking){ speaking=false; setNarrBtns(false); } };
-  if(ttsApi){ try{ await ttsApi.speak(text.slice(0,2000)); }catch{} done(); return; }
-  if("speechSynthesis" in window){ const u=new SpeechSynthesisUtterance(text); u.onend=done; u.onerror=done; speechSynthesis.speak(u); return; }
+// Auto mode: hold a place in the reticle for 1 s and its story plays. Holding a different place
+// for 1 s switches to it; tapping a tag plays that one right away.
+let speaking=false, speakingFrom="", narrPoi=null, speechToken=0;
+const DWELL_MS=1000;
+function setNarrBtns(){
+  const on = f => speaking && speakingFrom===f;
+  $("narrate-era").innerHTML=(on("era")?I.stop:I.play)+`<span>${on("era")?"Stop":"Narrate"}</span>`;
+  $("sheet-narrate").innerHTML=(on("sheet")?I.stop:I.play)+`<span>${on("sheet")?"Stop":"Narrate"}</span>`;
+}
+function showNP(p){
+  const np=$("np");
+  if(!p){ np.hidden=true; return; }
+  np.style.setProperty("--npc", eraColor(p.era));
+  $("np-name").textContent=p.name; np.hidden=false; measureDock();
+}
+function stopSpeech(){
+  speechToken++; speaking=false;
+  try{ ttsApi&&ttsApi.stop(); }catch{} try{ window.speechSynthesis&&speechSynthesis.cancel(); }catch{}
+  setNarrBtns(); showNP(null);
+}
+function say(text, from, poi){
+  stopSpeech();
+  const tok=++speechToken; speaking=true; speakingFrom=from; setNarrBtns(); showNP(poi);
+  const done=()=>{ if(tok!==speechToken) return; speaking=false; setNarrBtns(); showNP(null); };
+  if(ttsApi){ ttsApi.speak(text.slice(0,2000)).catch(()=>{}).then(done); return; }
+  if("speechSynthesis" in window){
+    const u=new SpeechSynthesisUtterance(text); u.rate=1.02; u.onend=done; u.onerror=done;
+    setTimeout(()=>{ if(tok===speechToken) speechSynthesis.speak(u); }, 60);   // Chrome drops a speak() right after cancel()
+    return;
+  }
   done(); toast("Narration isn't available in this browser.");
 }
-$("narrate-era").onclick=()=>speak(`${$("story-title").textContent}. ${$("story-text").textContent}`, "era");
-$("sheet-narrate").onclick=()=>speak(`${$("sheet-title").textContent}. ${$("sheet-fact").textContent} ${$("sheet-story").textContent}`, "sheet");
+function poiScript(p){
+  const when = p.year ? ` ${/^\d{4}$/.test(p.year)?"Dating to "+p.year:p.year}.` : "";
+  return `${p.name}.${when} ${p.fact||""} ${p.story||""}`.replace(/\s+/g," ").trim();
+}
+function narratePoi(p, from){ narrPoi=p; say(poiScript(p), from, p); if(from==="auto" && (S.loc.pois||[]).includes(p) && addDisc(p.name)) buildLabels(); }
+$("narrate-era").onclick=()=>{ if(speaking&&speakingFrom==="era") return stopSpeech(); narrPoi=null; say(`${$("story-title").textContent}. ${$("story-text").textContent}`, "era", {name:$("story-title").textContent, era:S.era}); };
+$("sheet-narrate").onclick=()=>{ if(speaking&&speakingFrom==="sheet") return stopSpeech(); if(sheetPoi) narratePoi(sheetPoi,"sheet"); };
+$("np-stop").innerHTML=I.stop;
+$("np-stop").onclick=()=>stopSpeech();
+$("np-open").onclick=()=>{ if(narrPoi && narrPoi.lat!=null) openPoi(narrPoi, {keepAudio:true}); };
+function renderAuto(){ const b=$("auto-narr"); b.setAttribute("aria-pressed", String(S.autoNarr)); b.innerHTML=`<svg class="i" viewBox="0 0 24 24"><path d="M4 14v-2a8 8 0 0 1 16 0v2"/><rect x="3" y="14" width="4" height="6" rx="1.5"/><rect x="17" y="14" width="4" height="6" rx="1.5"/></svg><span>Auto ${S.autoNarr?"on":"off"}</span>`; }
+try{ const v=localStorage.getItem("strata:auto"); if(v!=null) S.autoNarr = v==="1"; }catch{}
+renderAuto();
+$("auto-narr").onclick=()=>{ S.autoNarr=!S.autoNarr; renderAuto(); try{ localStorage.setItem("strata:auto", S.autoNarr?"1":"0"); }catch{}
+  if(!S.autoNarr && speakingFrom==="auto") stopSpeech();
+  toast(S.autoNarr ? "Aim at a place and hold for a second to hear it" : "Auto-narration off. Tap a tag to hear it.", 2600); };
 
 // ---------- Look around by dragging ----------
 const lens=$("lens");
@@ -1062,18 +1231,29 @@ function placeLabels(){
     L.el.style.zIndex=String(1000-i);
     const txt=fmtDist(d); if(L.dEl.textContent!==txt) L.dEl.textContent=txt;
   });
-  // reticle lock-on
-  const lockedNow = best ? best.L : null;
-  if(lockedNow!==S.locked){
+  // reticle lock-on (sticky so compass jitter doesn't flip between targets)
+  const cur = S.locked && items.find(it=>it.L===S.locked);
+  let target = best ? best.L : null;
+  if(cur && Math.abs(cur.rel)<10 && (!best || best.L===cur.L || Math.abs(best.rel) > Math.abs(cur.rel)-3)) target=cur.L;
+  const ret=$("reticle"), call=$("lockcall");
+  if(target!==S.locked){
     if(S.locked) S.locked.el.classList.remove("locked");
-    S.locked=lockedNow;
-    const ret=$("reticle"), call=$("lockcall");
-    if(lockedNow){
-      lockedNow.el.classList.add("locked");
-      const c=eraColor(lockedNow.p.era); ret.style.setProperty("--lc",c); call.style.setProperty("--lc",c);
-      ret.classList.add("lock"); call.textContent=`Locked · tap to explore`; call.hidden=false; buzz(6);
+    S.locked=target; S.lockSince=performance.now();
+    if(target){
+      target.el.classList.add("locked");
+      const c=eraColor(target.p.era); ret.style.setProperty("--lc",c); call.style.setProperty("--lc",c);
+      ret.classList.add("lock"); call.hidden=false; buzz(6);
+      const arming = S.autoNarr && narrPoi!==target.p;
+      call.innerHTML=`<span class="t">${arming?"Hold steady to listen": speaking&&narrPoi===target.p ? "Narrating · tap for the card" : "Locked · tap for the story"}</span><span class="fill"></span>`;
+      call.classList.remove("arming"); void call.offsetWidth; if(arming) call.classList.add("arming");
     } else { ret.classList.remove("lock"); call.hidden=true; }
   }
+  // dwell: 1 s on a place starts its narration (unless a card is open)
+  if(S.autoNarr && S.locked && $("sheet").hidden && narrPoi!==S.locked.p && performance.now()-S.lockSince>=DWELL_MS){
+    narratePoi(S.locked.p, "auto");
+    call.classList.remove("arming"); call.querySelector(".t").textContent="Narrating · tap for the card";
+  }
+  for(const L of S.labels) L.el.classList.toggle("speaking", speaking && narrPoi===L.p);
   const eL=$("edgeL"), eR=$("edgeR");
   eL.hidden=!left; eR.hidden=!right; if(left) eL.textContent=`‹ ${left}`; if(right) eR.textContent=`${right} ›`;
 }
