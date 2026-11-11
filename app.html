@@ -1,152 +1,233 @@
 <title>Strata Time Lens</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Manrope:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@300;400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap">
 <style>
-/* Layout: a full-bleed lens (live camera or simulated scene) with a glass HUD on top,
-   AR place tags floating at the horizon, and a "strata" time dial docked at the bottom.
+/* Layout: full-bleed lens with holographic HUD. A "time spectrum" (the era colors, newest to oldest)
+   is the brand: it edges every glass panel, fills the scrubber and tints the warp between eras.
    Single dark look on purpose: it is a camera viewfinder. */
 :root{
-  --ink:#0d1013;
-  --glass:rgba(13,16,19,.74);
-  --glass-hi:rgba(28,33,38,.92);
-  --line:rgba(236,231,218,.16);
-  --paper:#ece7da;
-  --muted:#a9a497;
-  --brass:#d9a55b;
-  --alert:#e5735b;
-  --era:#d9a55b;
-  --f-display:"Instrument Serif", Georgia, "Times New Roman", serif;
-  --f-body:"Manrope", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --void:#05070b;
+  --glass:rgba(9,13,20,.58);
+  --glass-hi:rgba(11,15,23,.86);
+  --hair:rgba(220,235,255,.12);
+  --text:#eef3fb;
+  --dim:#93a0b4;
+  --cyan:#67e8f9;
+  --era:#67e8f9;
+  --spectrum:linear-gradient(90deg,#eef3fb 0%,#f2c14e 16%,#ff9a5a 32%,#ff6f7d 48%,#c08bff 64%,#7fd8ff 80%,#3fe0c5 100%);
+  --f-display:"Unbounded", "Arial Black", system-ui, sans-serif;
+  --f-body:"Plus Jakarta Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
   --f-mono:"JetBrains Mono", ui-monospace, Menlo, Consolas, monospace;
   --safe-t:env(safe-area-inset-top,0px);
   --safe-b:env(safe-area-inset-bottom,0px);
   --safe-l:env(safe-area-inset-left,0px);
   --safe-r:env(safe-area-inset-right,0px);
+  --dock-h:260px;
   color-scheme:dark;
 }
 html,body{height:100%}
-body{background:var(--ink);color:var(--paper);font-family:var(--f-body);font-size:15px;line-height:1.45;overflow:hidden;-webkit-tap-highlight-color:transparent}
-button{font:inherit;color:inherit;cursor:pointer}
-button:focus-visible,a:focus-visible,input:focus-visible{outline:2px solid var(--brass);outline-offset:2px}
-.mono{font-family:var(--f-mono);font-variant-numeric:tabular-nums;letter-spacing:.02em}
+body{background:var(--void);color:var(--text);font-family:var(--f-body);font-size:15px;line-height:1.5;overflow:hidden;-webkit-tap-highlight-color:transparent;-webkit-font-smoothing:antialiased}
+button{font:inherit;color:inherit;cursor:pointer;background:none;border:0;padding:0}
+button:focus-visible,a:focus-visible,input:focus-visible{outline:2px solid var(--cyan);outline-offset:3px}
+.mono{font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+svg.i{width:18px;height:18px;flex:none;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
 
-#app{position:fixed;inset:0;overflow:hidden;background:var(--ink)}
+/* Glass + holographic edge */
+.glass{background:var(--glass);backdrop-filter:blur(18px) saturate(1.6);-webkit-backdrop-filter:blur(18px) saturate(1.6);border-radius:20px;position:relative;box-shadow:0 10px 40px rgba(0,0,0,.35)}
+.holo::after{content:"";position:absolute;inset:0;border-radius:inherit;padding:1px;background:var(--spectrum);background-size:200% 100%;
+  -webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask-composite:exclude;
+  pointer-events:none;opacity:.55;animation:shimmer 8s linear infinite}
+@keyframes shimmer{to{background-position:200% 0}}
+
+#app{position:fixed;inset:0;overflow:hidden;background:var(--void)}
 #lens{position:absolute;inset:0;touch-action:none;cursor:grab}
 #lens:active{cursor:grabbing}
 #video,#scene{position:absolute;inset:0;width:100%;height:100%}
-#video{object-fit:cover;transition:filter .6s ease}
-#tint{position:absolute;inset:0;pointer-events:none;mix-blend-mode:color;opacity:0;transition:opacity .6s ease,background .6s ease}
-#vignette{position:absolute;inset:0;pointer-events:none;background:radial-gradient(120% 80% at 50% 45%,transparent 55%,rgba(0,0,0,.55))}
+#video{object-fit:cover;transition:filter .8s ease}
+#tint{position:absolute;inset:0;pointer-events:none;mix-blend-mode:color;opacity:0;transition:opacity .8s ease,background .8s ease}
+#fx{position:absolute;inset:0;pointer-events:none;
+  background:
+   radial-gradient(130% 85% at 50% 42%,transparent 50%,rgba(0,0,0,.6)),
+   repeating-linear-gradient(0deg,rgba(255,255,255,.018) 0 1px,transparent 1px 3px)}
+
+/* Warp transition between eras */
+#warp{position:absolute;inset:-20%;pointer-events:none;opacity:0;
+  background:radial-gradient(circle at 50% 46%,transparent 0 18%,var(--era) 26%,transparent 46%)}
+#warp.go{animation:warp .9s cubic-bezier(.2,.7,.2,1)}
+@keyframes warp{0%{opacity:.0;transform:scale(.2)}20%{opacity:.75}100%{opacity:0;transform:scale(2.4)}}
+
+/* Reticle */
+#reticle{position:absolute;left:50%;top:var(--hz,47%);width:120px;height:120px;transform:translate(-50%,-50%);pointer-events:none;transition:top .25s ease}
+#reticle i{position:absolute;width:18px;height:18px;border-color:rgba(238,243,251,.55);border-style:solid;border-width:0;transition:all .35s cubic-bezier(.2,.8,.2,1)}
+#reticle i:nth-child(1){left:0;top:0;border-left-width:2px;border-top-width:2px;border-top-left-radius:6px}
+#reticle i:nth-child(2){right:0;top:0;border-right-width:2px;border-top-width:2px;border-top-right-radius:6px}
+#reticle i:nth-child(3){left:0;bottom:0;border-left-width:2px;border-bottom-width:2px;border-bottom-left-radius:6px}
+#reticle i:nth-child(4){right:0;bottom:0;border-right-width:2px;border-bottom-width:2px;border-bottom-right-radius:6px}
+#reticle b{position:absolute;left:50%;top:50%;width:6px;height:6px;margin:-3px;border-radius:50%;background:rgba(238,243,251,.7)}
+#reticle.lock i{border-color:var(--lc,var(--cyan));width:26px;height:26px;filter:drop-shadow(0 0 6px var(--lc,var(--cyan)))}
+#reticle.lock{animation:breathe 1.6s ease-in-out infinite}
+@keyframes breathe{50%{transform:translate(-50%,-50%) scale(.9)}}
 
 /* AR tags */
 #labels{position:absolute;inset:0;pointer-events:none}
-.tag{position:absolute;left:0;top:0;pointer-events:auto;display:grid;gap:1px;text-align:left;min-width:0;max-width:200px;
-  padding:7px 11px 8px;border-radius:10px;border:1px solid color-mix(in srgb,var(--c) 55%,transparent);
-  background:var(--glass);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);
-  box-shadow:0 6px 18px rgba(0,0,0,.35);will-change:transform;transform-origin:50% 100%}
-.tag::after{content:"";position:absolute;left:50%;top:100%;width:1px;height:22px;background:linear-gradient(var(--c),transparent)}
-.tag::before{content:"";position:absolute;left:calc(50% - 3px);top:calc(100% + 20px);width:7px;height:7px;border-radius:50%;background:var(--c);box-shadow:0 0 0 3px rgba(0,0,0,.35)}
-.tag-yr{font-family:var(--f-mono);font-size:10.5px;letter-spacing:.08em;color:var(--c);text-transform:uppercase}
-.tag-name{font-weight:600;font-size:13.5px;line-height:1.2;overflow-wrap:anywhere}
-.tag-d{font-family:var(--f-mono);font-size:10.5px;color:var(--muted)}
-.edge{position:absolute;top:46%;font-family:var(--f-mono);font-size:11px;color:var(--paper);background:var(--glass);border:1px solid var(--line);
-  padding:6px 8px;border-radius:999px;pointer-events:none}
+.tag{position:absolute;left:0;top:0;pointer-events:auto;will-change:transform;transform-origin:50% 100%;text-align:left}
+.tag-card{display:grid;grid-template-columns:auto 1fr;gap:2px 9px;align-items:center;max-width:220px;padding:8px 12px 8px 8px;border-radius:16px;
+  background:rgba(8,12,18,.62);backdrop-filter:blur(12px) saturate(1.5);-webkit-backdrop-filter:blur(12px) saturate(1.5);position:relative;
+  box-shadow:0 0 0 1px color-mix(in srgb,var(--c) 45%,transparent),0 8px 24px rgba(0,0,0,.4),0 0 24px color-mix(in srgb,var(--c) 18%,transparent);
+  transition:box-shadow .3s ease,transform .3s cubic-bezier(.2,.8,.2,1)}
+.tag-badge{grid-row:span 2;width:34px;height:34px;border-radius:11px;display:grid;place-items:center;font-family:var(--f-display);font-size:10px;font-weight:600;color:#06080c;
+  background:linear-gradient(140deg,var(--c),color-mix(in srgb,var(--c) 55%,#fff))}
+.tag-name{font-weight:700;font-size:13.5px;line-height:1.2;overflow-wrap:anywhere;min-width:0}
+.tag-meta{font-family:var(--f-mono);font-size:10.5px;color:var(--dim);display:flex;gap:6px;align-items:center;min-width:0}
+.tag-meta .ok{color:#7cf2b0}
+.tag-stem{position:absolute;left:50%;top:100%;width:2px;height:30px;margin-left:-1px;background:linear-gradient(var(--c),transparent)}
+.tag-ring{position:absolute;left:50%;top:calc(100% + 30px);width:26px;height:9px;margin:-4.5px 0 0 -13px;border-radius:50%;border:1.5px solid var(--c);animation:ring 2.2s ease-out infinite}
+@keyframes ring{0%{transform:scale(.4);opacity:1}100%{transform:scale(2.2);opacity:0}}
+.tag.locked .tag-card{transform:scale(1.08);box-shadow:0 0 0 1.5px var(--c),0 10px 30px rgba(0,0,0,.45),0 0 40px color-mix(in srgb,var(--c) 45%,transparent)}
+.edge{position:absolute;top:var(--hz,47%);transform:translateY(-50%);font-family:var(--f-mono);font-size:11px;display:flex;gap:4px;align-items:center;
+  padding:7px 10px;border-radius:999px;pointer-events:none;background:var(--glass);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);box-shadow:0 0 0 1px var(--hair)}
 #edgeL{left:calc(10px + var(--safe-l))}
 #edgeR{right:calc(10px + var(--safe-r))}
+#lockcall{position:absolute;left:50%;top:calc(var(--hz,47%) + 72px);transform:translateX(-50%);pointer-events:auto;
+  font-family:var(--f-mono);font-size:11px;letter-spacing:.12em;text-transform:uppercase;padding:7px 12px;border-radius:999px;
+  background:var(--glass);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);box-shadow:0 0 0 1px var(--lc,var(--cyan));color:var(--lc,var(--cyan));white-space:nowrap}
 
 /* Top HUD */
 #hud{position:absolute;left:0;right:0;top:0;padding:calc(10px + var(--safe-t)) calc(12px + var(--safe-r)) 0 calc(12px + var(--safe-l));
   display:grid;grid-template-columns:1fr auto;gap:10px;align-items:start;pointer-events:none}
 #hud > *{pointer-events:auto}
-.plate{background:var(--glass);border:1px solid var(--line);border-radius:14px;padding:9px 12px;backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);min-width:0}
-#place-name{font-family:var(--f-display);font-size:22px;line-height:1.05;text-wrap:balance;overflow-wrap:anywhere}
-#place-sub{font-size:11.5px;color:var(--muted);margin-top:3px}
-.chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
-.chip{font-family:var(--f-mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;padding:2px 7px;border-radius:999px;border:1px solid var(--line);color:var(--muted)}
-.chip.live{color:#9fe0a8;border-color:rgba(159,224,168,.4)}
-.chip.demo{color:var(--brass);border-color:rgba(217,165,91,.45)}
-#radar{width:88px;height:88px;display:block}
-#tape{position:absolute;left:0;right:0;top:calc(var(--safe-t) + 122px);height:26px;width:100%;pointer-events:none}
+#place{padding:10px 14px 11px;min-width:0;display:grid;gap:4px}
+#place-top{display:flex;align-items:center;gap:8px;min-width:0}
+#mode-dot{width:8px;height:8px;border-radius:50%;background:var(--cyan);box-shadow:0 0 10px var(--cyan);flex:none;animation:blink 2s ease-in-out infinite}
+#mode-dot.live{background:#7cf2b0;box-shadow:0 0 10px #7cf2b0}
+#mode-dot.ai{background:#c08bff;box-shadow:0 0 10px #c08bff}
+@keyframes blink{50%{opacity:.35}}
+#mode-label{font-family:var(--f-mono);font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--dim);white-space:nowrap}
+#place-name{font-family:var(--f-display);font-weight:500;font-size:17px;line-height:1.15;letter-spacing:-.01em;text-wrap:balance;overflow-wrap:anywhere}
+#place-sub{font-size:11px;color:var(--dim);font-family:var(--f-mono)}
+#instruments{display:grid;gap:8px;justify-items:end}
+#radar-wrap{padding:6px;border-radius:50%}
+#radar{width:84px;height:84px;display:block;border-radius:50%}
+#disc{display:flex;align-items:center;gap:7px;padding:5px 10px 5px 5px;border-radius:999px}
+#disc svg{width:26px;height:26px;transform:rotate(-90deg)}
+#disc span{font-family:var(--f-mono);font-size:11px;color:var(--text)}
+
+/* Year readout + compass */
+#yearbox{position:absolute;left:0;right:0;top:calc(var(--safe-t) + 128px);display:grid;justify-items:center;gap:2px;pointer-events:none}
+#year-label{font-family:var(--f-mono);font-size:9.5px;letter-spacing:.3em;text-transform:uppercase;color:var(--dim)}
+#year{font-family:var(--f-display);font-weight:600;font-size:clamp(30px,9vw,44px);line-height:1;letter-spacing:-.02em;font-variant-numeric:tabular-nums;
+  background:linear-gradient(180deg,#fff,var(--era));-webkit-background-clip:text;background-clip:text;color:transparent;filter:drop-shadow(0 0 18px color-mix(in srgb,var(--era) 45%,transparent))}
+#year-unit{font-family:var(--f-mono);font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:var(--era);min-height:14px}
+#tape{position:absolute;left:0;right:0;top:calc(var(--safe-t) + 210px);height:28px;width:100%;pointer-events:none;
+  -webkit-mask:linear-gradient(90deg,transparent,#000 22%,#000 78%,transparent);mask:linear-gradient(90deg,transparent,#000 22%,#000 78%,transparent)}
 
 /* Beneath-you card */
-#ground{position:absolute;left:calc(12px + var(--safe-l));right:calc(12px + var(--safe-r));bottom:calc(var(--dock-h,250px) + 10px);
-  display:grid;grid-template-columns:44px 1fr;gap:10px;align-items:center;cursor:pointer;text-align:left}
-#ground .swatch{width:44px;height:44px;border-radius:8px;background:
-  repeating-linear-gradient(0deg,rgba(0,0,0,.18) 0 3px,transparent 3px 9px),var(--gc,#99c2b5)}
-#ground b{display:block;font-size:13.5px}
-#ground span{font-size:12px;color:var(--muted)}
+#ground{position:absolute;left:calc(12px + var(--safe-l));right:calc(12px + var(--safe-r));bottom:calc(var(--dock-h) + 10px);
+  display:grid;grid-template-columns:46px 1fr auto;gap:12px;align-items:center;text-align:left;padding:10px 14px 10px 10px;border-radius:18px}
+#ground .swatch{width:46px;height:46px;border-radius:12px;background:repeating-linear-gradient(0deg,rgba(0,0,0,.22) 0 3px,transparent 3px 8px),var(--gc,#3fe0c5);box-shadow:0 0 18px color-mix(in srgb,var(--gc,#3fe0c5) 50%,transparent)}
+#ground small{display:block;font-family:var(--f-mono);font-size:9.5px;letter-spacing:.2em;text-transform:uppercase;color:var(--era)}
+#ground b{display:block;font-size:14px;line-height:1.25}
+#ground span{display:block;font-size:12px;color:var(--dim)}
 
-/* Dock with time dial */
-#dock{position:absolute;left:0;right:0;bottom:0;padding:0 calc(12px + var(--safe-r)) calc(12px + var(--safe-b)) calc(12px + var(--safe-l));display:grid;gap:8px}
-#dial{display:flex;gap:0;overflow-x:auto;scrollbar-width:none;border-radius:12px;border:1px solid var(--line);background:var(--glass);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px)}
-#dial::-webkit-scrollbar{display:none}
-.era{flex:1 0 auto;min-width:86px;border:0;background:transparent;padding:8px 10px 9px;text-align:left;display:grid;gap:2px;position:relative;border-right:1px solid var(--line)}
-.era:last-child{border-right:0}
-.era::before{content:"";position:absolute;left:0;right:0;top:0;height:3px;background:var(--c);opacity:.45}
-.era b{font-size:12.5px;font-weight:600;white-space:nowrap}
-.era small{font-family:var(--f-mono);font-size:9.5px;color:var(--muted);white-space:nowrap}
-.era[aria-pressed="true"]{background:color-mix(in srgb,var(--c) 22%,transparent)}
-.era[aria-pressed="true"]::before{opacity:1;height:4px}
-#story{background:var(--glass-hi);border:1px solid var(--line);border-radius:16px;padding:12px 14px 12px;display:grid;gap:8px}
+/* Dock */
+#dock{position:absolute;left:0;right:0;bottom:0;padding:0 calc(10px + var(--safe-r)) calc(10px + var(--safe-b)) calc(10px + var(--safe-l));display:grid;gap:10px}
+#dial{padding:12px 14px 10px;border-radius:22px;touch-action:none;user-select:none;-webkit-user-select:none}
+#dial-track{position:relative;height:10px;border-radius:999px;background:var(--spectrum);cursor:pointer;box-shadow:0 0 18px rgba(103,232,249,.15) inset}
+#dial-ticks{position:absolute;inset:0;display:flex}
+#dial-ticks span{flex:1;border-right:1px solid rgba(5,7,11,.55)}
+#dial-ticks span:last-child{border-right:0}
+#dial-knob{position:absolute;top:50%;left:0;width:26px;height:26px;margin:-13px 0 0 -13px;border-radius:50%;background:var(--void);
+  box-shadow:0 0 0 3px var(--era),0 0 22px var(--era);transition:left .45s cubic-bezier(.2,.9,.2,1.15),box-shadow .45s}
+#dial-knob::after{content:"";position:absolute;inset:7px;border-radius:50%;background:var(--era)}
+#dial-labels{display:flex;margin-top:12px}
+#dial-labels button{flex:1;min-width:0;font-family:var(--f-mono);font-size:9.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--dim);text-align:center;padding:4px 0;border-radius:8px;white-space:nowrap;overflow:hidden;text-overflow:clip;transition:color .3s}
+#dial-labels button[aria-pressed="true"]{color:var(--text);font-weight:600}
+#story{padding:16px 16px 14px;border-radius:24px;display:grid;gap:10px;background:var(--glass-hi)}
 #story-head{display:flex;align-items:baseline;justify-content:space-between;gap:10px}
-#story-title{font-family:var(--f-display);font-size:24px;line-height:1.05;color:var(--era)}
-#story-span{font-family:var(--f-mono);font-size:10.5px;color:var(--muted);white-space:nowrap}
-#story-text{font-size:14px;color:var(--paper);max-width:65ch;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;cursor:pointer}
-#story-text.open{-webkit-line-clamp:unset;display:block;max-height:34vh;overflow:auto}
-.row{display:flex;gap:8px;flex-wrap:wrap}
-.btn{border:1px solid var(--line);background:rgba(236,231,218,.06);border-radius:999px;padding:7px 13px;font-size:13px;font-weight:600;display:inline-flex;align-items:center;gap:6px}
-.btn:hover{background:rgba(236,231,218,.12)}
-.btn.primary{background:var(--brass);color:#1b1408;border-color:transparent}
-.btn.primary:hover{background:#e6b56c}
+#story-title{font-family:var(--f-display);font-weight:500;font-size:20px;line-height:1.1;letter-spacing:-.01em;color:var(--text)}
+#story-span{font-family:var(--f-mono);font-size:10.5px;color:var(--era);white-space:nowrap}
+#story-text{font-size:14px;color:#cfd8e6;max-width:65ch;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;cursor:pointer}
+#story-text.open{-webkit-line-clamp:unset;display:block;max-height:32vh;overflow:auto}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.btn{display:inline-flex;align-items:center;gap:7px;padding:9px 14px;border-radius:999px;font-size:13px;font-weight:600;background:rgba(238,243,251,.07);box-shadow:inset 0 0 0 1px var(--hair);transition:background .2s,transform .15s}
+.btn:hover{background:rgba(238,243,251,.13)}
+.btn:active{transform:scale(.96)}
+.btn.icon{padding:9px;width:38px;height:38px;justify-content:center}
+.btn.primary{background:linear-gradient(120deg,#67e8f9,#c08bff);color:#05070b;box-shadow:0 0 22px rgba(103,232,249,.35)}
+.btn.ai{background:linear-gradient(120deg,rgba(192,139,255,.22),rgba(103,232,249,.18));box-shadow:inset 0 0 0 1px rgba(192,139,255,.5)}
 .btn[disabled]{opacity:.45;cursor:not-allowed}
+.spacer{flex:1}
 
 /* Sheet */
-#sheet{position:absolute;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:flex-end;justify-content:center;z-index:20}
-#sheet-card{width:min(640px,100%);max-height:86%;overflow:auto;background:var(--glass-hi);border:1px solid var(--line);border-bottom:0;border-radius:20px 20px 0 0;
-  padding:18px max(18px,calc(18px + var(--safe-r))) calc(18px + var(--safe-b)) max(18px,calc(18px + var(--safe-l)));display:grid;gap:12px;backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px)}
-#sheet-card h2{margin:0;font-family:var(--f-display);font-weight:400;font-size:34px;line-height:1;text-wrap:balance}
-.meta{display:flex;gap:10px;flex-wrap:wrap;align-items:center;font-size:12px;color:var(--muted)}
-.era-pill{font-family:var(--f-mono);font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;padding:3px 8px;border-radius:999px;background:color-mix(in srgb,var(--c) 22%,transparent);color:var(--c);border:1px solid color-mix(in srgb,var(--c) 50%,transparent)}
-#sheet-img{width:100%;max-height:220px;object-fit:cover;border-radius:12px}
-#sheet-strata{height:56px;border-radius:12px;background:var(--sb)}
-#sheet-story{margin:0;max-width:65ch;font-size:15px}
-.ask{display:grid;gap:8px;border-top:1px solid var(--line);padding-top:12px}
-.ask label{font-size:12px;color:var(--muted)}
+#sheet{position:absolute;inset:0;background:rgba(2,4,8,.5);display:flex;align-items:flex-end;justify-content:center;z-index:20;animation:fade .25s ease}
+@keyframes fade{from{opacity:0}}
+#sheet-card{position:relative;width:min(640px,100%);max-height:88%;overflow:auto;background:var(--glass-hi);border-radius:28px 28px 0 0;
+  padding:0 0 calc(18px + var(--safe-b));display:grid;backdrop-filter:blur(24px) saturate(1.5);-webkit-backdrop-filter:blur(24px) saturate(1.5);
+  animation:rise .38s cubic-bezier(.2,.9,.2,1)}
+@keyframes rise{from{transform:translateY(40px);opacity:0}}
+#sheet-hero{position:relative;padding:22px max(20px,calc(20px + var(--safe-r))) 18px max(20px,calc(20px + var(--safe-l)));display:grid;gap:10px;overflow:hidden;
+  background:radial-gradient(120% 140% at 100% 0%,color-mix(in srgb,var(--c) 38%,transparent),transparent 60%)}
+#sheet-hero::before{content:"";position:absolute;left:50%;top:8px;width:40px;height:4px;margin-left:-20px;border-radius:4px;background:rgba(238,243,251,.25)}
+#sheet-big{position:absolute;right:max(14px,calc(14px + var(--safe-r)));top:12px;font-family:var(--f-display);font-weight:700;font-size:64px;line-height:1;letter-spacing:-.04em;
+  color:transparent;-webkit-text-stroke:1px color-mix(in srgb,var(--c) 70%,transparent);opacity:.55;pointer-events:none;white-space:nowrap}
+.meta{display:flex;gap:10px;flex-wrap:wrap;align-items:center;font-size:12px;color:var(--dim);position:relative}
+.era-pill{font-family:var(--f-mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;padding:4px 9px;border-radius:999px;background:color-mix(in srgb,var(--c) 20%,transparent);color:var(--c);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--c) 50%,transparent)}
+#sheet-title{margin:0;font-family:var(--f-display);font-weight:500;font-size:clamp(24px,7vw,32px);line-height:1.08;letter-spacing:-.02em;text-wrap:balance;position:relative;max-width:22ch}
+#sheet-new{position:relative;justify-self:start;font-family:var(--f-mono);font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:#7cf2b0;display:flex;gap:6px;align-items:center;animation:pop .6s cubic-bezier(.2,1.6,.4,1)}
+@keyframes pop{from{transform:scale(.6);opacity:0}}
+#sheet-body{padding:4px max(20px,calc(20px + var(--safe-r))) 0 max(20px,calc(20px + var(--safe-l)));display:grid;gap:14px}
+#sheet-img{width:100%;max-height:220px;object-fit:cover;border-radius:16px}
+#sheet-strata{height:64px;border-radius:16px;background:var(--sb)}
+#sheet-fact{margin:0;font-size:15.5px;font-weight:600;color:var(--text);max-width:60ch}
+#sheet-story{margin:0;max-width:65ch;font-size:15px;color:#cfd8e6}
+.ask{display:grid;gap:10px;padding:14px;border-radius:18px;background:linear-gradient(140deg,rgba(192,139,255,.10),rgba(103,232,249,.06));box-shadow:inset 0 0 0 1px rgba(192,139,255,.25)}
+.ask label{font-size:12px;color:#d9c6ff;display:flex;gap:6px;align-items:center;font-weight:600}
 .ask-row{display:flex;gap:8px}
-.ask input{flex:1;min-width:0;background:rgba(0,0,0,.3);border:1px solid var(--line);border-radius:10px;padding:9px 11px;color:var(--paper);font:inherit}
-.answer{font-size:14px;color:var(--paper);white-space:pre-wrap;max-width:65ch}
-.fine{font-size:11.5px;color:var(--muted)}
-.fine a{color:var(--brass)}
+.ask input{flex:1;min-width:0;background:rgba(0,0,0,.35);border:0;box-shadow:inset 0 0 0 1px var(--hair);border-radius:12px;padding:10px 12px;color:var(--text);font:inherit;font-size:14px}
+.suggest{display:flex;gap:6px;flex-wrap:wrap}
+.suggest button{font-size:12px;padding:5px 10px;border-radius:999px;background:rgba(238,243,251,.06);box-shadow:inset 0 0 0 1px var(--hair);color:#d6deea}
+.answer{font-size:14px;color:var(--text);white-space:pre-wrap;max-width:65ch}
+.answer:empty{display:none}
+.fine{font-size:11.5px;color:var(--dim)}
 
 /* Start */
-#start{position:absolute;inset:0;z-index:30;overflow:auto;background:
-  linear-gradient(180deg,rgba(13,16,19,.25),rgba(13,16,19,.96) 62%),
-  repeating-linear-gradient(180deg,#99c2b5 0 14px,#7fa695 14px 22px,#d9a55b 22px 30px,#b5654a 30px 40px,#8c6a9e 40px 46px,#c9dde6 46px 58px,#3f6f78 58px 76px);
-  padding:calc(28px + var(--safe-t)) max(18px,calc(18px + var(--safe-r))) calc(28px + var(--safe-b)) max(18px,calc(18px + var(--safe-l)))}
-.start-inner{max-width:560px;margin:0 auto;display:grid;gap:18px;padding-top:18vh}
-.kicker{font-family:var(--f-mono);font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--brass)}
-#start h1{margin:0;font-family:var(--f-display);font-weight:400;font-size:clamp(56px,16vw,96px);line-height:.9;letter-spacing:-.01em}
-#start h1 i{color:var(--brass)}
-.lede{margin:0;font-size:16px;color:var(--paper);max-width:46ch}
-.opt{display:grid;gap:4px;text-align:left;padding:14px 16px;border-radius:14px;border:1px solid var(--line);background:rgba(13,16,19,.7)}
-.opt:hover{border-color:rgba(217,165,91,.6)}
-.opt b{font-size:15.5px}
-.opt span{font-size:12.5px;color:var(--muted)}
-.opt.primary{border-color:rgba(217,165,91,.65);background:rgba(217,165,91,.12)}
-.group-label{font-family:var(--f-mono);font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin-top:4px}
-.stack{display:grid;gap:8px}
+#start{position:absolute;inset:0;z-index:30;overflow:auto;background:var(--void)}
+#start-bg{position:fixed;inset:0;width:100%;height:100%}
+#start-veil{position:fixed;inset:0;background:linear-gradient(180deg,rgba(5,7,11,.1) 0%,rgba(5,7,11,.55) 40%,rgba(5,7,11,.95) 75%)}
+.start-inner{position:relative;max-width:540px;margin:0 auto;display:grid;gap:16px;
+  padding:calc(36px + var(--safe-t)) max(18px,calc(18px + var(--safe-r))) calc(28px + var(--safe-b)) max(18px,calc(18px + var(--safe-l)));padding-top:calc(16vh + var(--safe-t))}
+.kicker{font-family:var(--f-mono);font-size:10.5px;letter-spacing:.24em;text-transform:uppercase;color:var(--cyan);display:flex;gap:8px;align-items:center}
+.kicker::before{content:"";width:22px;height:1px;background:var(--cyan)}
+#start h1{margin:0;font-family:var(--f-display);font-weight:600;font-size:clamp(44px,13vw,76px);line-height:.95;letter-spacing:-.04em}
+#start h1 span{display:block;background:var(--spectrum);background-size:200% 100%;-webkit-background-clip:text;background-clip:text;color:transparent;animation:shimmer 6s linear infinite}
+.lede{margin:0;font-size:16px;color:#c9d3e1;max-width:42ch}
+.opt{display:grid;grid-template-columns:44px 1fr auto;gap:14px;align-items:center;text-align:left;padding:14px 16px 14px 14px;border-radius:20px;transition:transform .2s}
+.opt:active{transform:scale(.98)}
+.opt .ico{width:44px;height:44px;border-radius:14px;display:grid;place-items:center;background:rgba(238,243,251,.07);box-shadow:inset 0 0 0 1px var(--hair)}
+.opt .ico svg{width:22px;height:22px}
+.opt b{display:block;font-size:15px;font-weight:700}
+.opt span{display:block;font-size:12.5px;color:var(--dim);line-height:1.4}
+.opt .go{color:var(--dim)}
+.opt.primary{background:linear-gradient(120deg,rgba(103,232,249,.16),rgba(192,139,255,.14))}
+.opt.primary .ico{background:linear-gradient(140deg,#67e8f9,#c08bff);color:#05070b;box-shadow:0 0 24px rgba(103,232,249,.45)}
+.group-label{font-family:var(--f-mono);font-size:10px;letter-spacing:.22em;text-transform:uppercase;color:var(--dim);margin-top:6px}
+.stack{display:grid;gap:10px}
+#any-form{padding:6px;border-radius:18px}
+#any-form input{background:transparent;box-shadow:none}
 
-#toast{position:absolute;left:50%;top:calc(var(--safe-t) + 156px);transform:translateX(-50%);z-index:40;max-width:min(92vw,460px);
-  background:var(--glass-hi);border:1px solid var(--line);border-radius:12px;padding:9px 14px;font-size:13px;text-align:center}
-#busy{position:absolute;inset:0;z-index:35;display:grid;place-items:center;background:rgba(13,16,19,.6)}
-#busy div{background:var(--glass-hi);border:1px solid var(--line);border-radius:14px;padding:14px 18px;font-size:14px;display:flex;gap:10px;align-items:center}
-.spin{width:14px;height:14px;border-radius:50%;border:2px solid var(--line);border-top-color:var(--brass);animation:spin 1s linear infinite}
+#toast{position:absolute;left:50%;top:calc(var(--safe-t) + 132px);transform:translateX(-50%);z-index:40;max-width:min(90vw,440px);
+  padding:10px 16px;border-radius:999px;font-size:13px;text-align:center;display:flex;gap:8px;align-items:center;animation:pop .4s cubic-bezier(.2,1.4,.4,1)}
+#busy{position:absolute;inset:0;z-index:35;display:grid;place-items:center;background:rgba(5,7,11,.6)}
+#busy > div{padding:16px 20px;border-radius:20px;font-size:14px;display:flex;gap:12px;align-items:center}
+.spin{width:18px;height:18px;border-radius:50%;border:2px solid transparent;border-top-color:var(--cyan);border-right-color:#c08bff;animation:spin .9s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
-@media (prefers-reduced-motion:reduce){.spin{animation:none}#video,#tint{transition:none}}
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}
+}
 @media (min-width:760px){
-  #dock{left:50%;right:auto;transform:translateX(-50%);width:min(720px,calc(100% - 24px));padding-left:0;padding-right:0}
-  #ground{left:50%;right:auto;transform:translateX(-50%);width:min(720px,calc(100% - 24px))}
+  #dock,#ground{left:50%;right:auto;transform:translateX(-50%);width:min(680px,calc(100% - 24px));padding-left:0;padding-right:0}
+  #ground{padding:10px 14px 10px 10px}
 }
 </style>
 
@@ -155,98 +236,150 @@ button:focus-visible,a:focus-visible,input:focus-visible{outline:2px solid var(-
     <canvas id="scene"></canvas>
     <video id="video" playsinline muted autoplay hidden></video>
     <div id="tint"></div>
-    <div id="vignette"></div>
+    <div id="fx"></div>
+    <div id="warp"></div>
   </div>
-  <canvas id="tape" aria-hidden="true"></canvas>
+  <div id="reticle" aria-hidden="true"><i></i><i></i><i></i><i></i><b></b></div>
   <div id="labels"></div>
+  <button id="lockcall" hidden></button>
   <div class="edge" id="edgeL" hidden></div>
   <div class="edge" id="edgeR" hidden></div>
 
+  <div id="yearbox" aria-live="polite">
+    <div id="year-label">You are in</div>
+    <div id="year">2026</div>
+    <div id="year-unit"></div>
+  </div>
+  <canvas id="tape" aria-hidden="true"></canvas>
+
   <header id="hud">
-    <div class="plate">
+    <div id="place" class="glass holo">
+      <div id="place-top"><span id="mode-dot"></span><span id="mode-label">Demo</span><span id="mode-label-h" class="mono" style="font-size:10px;color:var(--dim);margin-left:auto"></span></div>
       <div id="place-name">Strata</div>
-      <div id="place-sub" class="mono">—</div>
-      <div class="chips"><span id="mode-chip" class="chip demo">Demo</span><span id="heading-chip" class="chip mono">0° N</span></div>
+      <div id="place-sub">—</div>
     </div>
-    <div class="plate" style="padding:6px"><canvas id="radar" width="176" height="176" aria-label="Radar of nearby places"></canvas></div>
+    <div id="instruments">
+      <div id="radar-wrap" class="glass holo"><canvas id="radar" width="168" height="168" aria-label="Radar of nearby places"></canvas></div>
+      <div id="disc" class="glass" title="Places discovered">
+        <svg viewBox="0 0 36 36"><circle cx="18" cy="18" r="15" stroke="rgba(238,243,251,.14)" stroke-width="4" fill="none"/><circle id="disc-ring" cx="18" cy="18" r="15" stroke="url(#sg)" stroke-width="4" fill="none" stroke-linecap="round" stroke-dasharray="94.25" stroke-dashoffset="94.25" style="transition:stroke-dashoffset .8s cubic-bezier(.2,.8,.2,1)"/><defs><linearGradient id="sg"><stop offset="0" stop-color="#67e8f9"/><stop offset="1" stop-color="#c08bff"/></linearGradient></defs></svg>
+        <span id="disc-text">0/0</span>
+      </div>
+    </div>
   </header>
 
-  <button id="ground" class="plate" hidden>
+  <button id="ground" class="glass holo" hidden>
     <div class="swatch"></div>
-    <div><b id="ground-name"></b><span id="ground-text"></span></div>
+    <div><small>Beneath you</small><b id="ground-name"></b><span id="ground-text"></span></div>
+    <svg class="i" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg>
   </button>
 
   <section id="dock">
-    <nav id="dial" aria-label="Travel through time"></nav>
-    <div id="story">
-      <div id="story-head"><div id="story-title">Today</div><div id="story-span" class="mono"></div></div>
+    <div id="dial" class="glass holo" role="group" aria-label="Travel through time">
+      <div id="dial-track"><div id="dial-ticks"></div><div id="dial-knob"></div></div>
+      <div id="dial-labels"></div>
+    </div>
+    <div id="story" class="glass holo">
+      <div id="story-head"><div id="story-title">Today</div><div id="story-span"></div></div>
       <div id="story-text" title="Tap to expand"></div>
       <div class="row">
-        <button class="btn" id="narrate-era">▶ Narrate</button>
-        <button class="btn" id="ask-era" hidden>Ask Claude about this era</button>
-        <button class="btn" id="change-place">Change place</button>
+        <button class="btn" id="narrate-era"></button>
+        <button class="btn ai" id="ask-era" hidden></button>
+        <span class="spacer"></span>
+        <button class="btn icon" id="change-place" aria-label="Change place"></button>
       </div>
     </div>
   </section>
 
   <div id="sheet" hidden>
-    <article id="sheet-card" role="dialog" aria-modal="true" aria-labelledby="sheet-title">
-      <div class="meta"><span class="era-pill" id="sheet-era"></span><span class="mono" id="sheet-meta"></span></div>
-      <h2 id="sheet-title"></h2>
-      <img id="sheet-img" alt="" hidden>
-      <div id="sheet-strata" hidden></div>
-      <p id="sheet-story"></p>
-      <div class="row">
-        <button class="btn" id="sheet-narrate">▶ Narrate</button>
-        <a class="btn" id="sheet-link" target="_blank" rel="noopener" hidden>Read more ↗</a>
-        <button class="btn" id="sheet-close">Close</button>
+    <article id="sheet-card" class="holo" role="dialog" aria-modal="true" aria-labelledby="sheet-title">
+      <div id="sheet-hero">
+        <div id="sheet-big" aria-hidden="true"></div>
+        <div class="meta"><span class="era-pill" id="sheet-era"></span><span class="mono" id="sheet-meta"></span></div>
+        <h2 id="sheet-title"></h2>
+        <div id="sheet-new" hidden></div>
       </div>
-      <div class="ask" id="ask-box" hidden>
-        <label for="ask-input" id="ask-label">Ask Claude a question about this place</label>
-        <div class="ask-row"><input id="ask-input" placeholder="What did this look like in 1900?" autocomplete="off"><button class="btn primary" id="ask-go">Ask</button></div>
-        <div class="answer" id="ask-answer"></div>
+      <div id="sheet-body">
+        <img id="sheet-img" alt="" hidden>
+        <div id="sheet-strata" hidden></div>
+        <p id="sheet-fact"></p>
+        <p id="sheet-story"></p>
+        <div class="row">
+          <button class="btn primary" id="sheet-narrate"></button>
+          <a class="btn" id="sheet-link" target="_blank" rel="noopener" hidden>Read more</a>
+          <span class="spacer"></span>
+          <button class="btn" id="sheet-close">Close</button>
+        </div>
+        <div class="ask" id="ask-box" hidden>
+          <label for="ask-input" id="ask-label"></label>
+          <div class="suggest" id="ask-suggest"></div>
+          <div class="ask-row"><input id="ask-input" placeholder="Ask anything about this place" autocomplete="off"><button class="btn primary" id="ask-go">Ask</button></div>
+          <div class="answer" id="ask-answer"></div>
+        </div>
+        <div class="fine" id="sheet-source"></div>
       </div>
-      <div class="fine" id="sheet-source"></div>
     </article>
   </div>
 
   <div id="start">
+    <canvas id="start-bg" aria-hidden="true"></canvas>
+    <div id="start-veil"></div>
     <div class="start-inner">
-      <div class="kicker">A pocket museum of the ground you stand on</div>
-      <h1>Strata <i>Time&nbsp;Lens</i></h1>
-      <p class="lede">Point your phone at a place. See what's there now, then scrub back through the 1800s, the Ice Age and the ancient seas to see what came before.</p>
+      <div class="kicker">AR discovery for curious people</div>
+      <h1>Strata<span>Time Lens</span></h1>
+      <p class="lede">Hold up your phone and the world around you turns into a museum. Tag what's here now, then slide back through centuries, ice ages and ancient seas.</p>
       <div class="stack">
-        <button class="opt primary" id="go-live"><b>Start the live lens</b><span id="live-note">Uses your camera, GPS and compass. Nearby history comes from Wikipedia, OpenStreetMap and Macrostrat geology.</span></button>
+        <button class="opt glass holo primary" id="go-live"><span class="ico" id="ico-live"></span><span><b>Launch live lens</b><span id="live-note">Camera, GPS and compass. Real history pulled for wherever you're standing.</span></span><span class="go" id="go-1"></span></button>
       </div>
-      <div class="group-label">Or try a demo place</div>
+      <div class="group-label">Demo places</div>
       <div class="stack" id="demo-list"></div>
       <div class="stack" id="any-place" hidden>
-        <div class="group-label">Any place on Earth, written by Claude</div>
-        <form class="ask-row" id="any-form">
-          <input id="any-input" placeholder="e.g. Pike Place Market, Seattle" autocomplete="off" aria-label="Place name">
-          <button class="btn primary" type="submit">Go</button>
+        <div class="group-label">Anywhere on Earth · written by Claude</div>
+        <form class="ask-row glass holo" id="any-form">
+          <input id="any-input" placeholder="Try “Route 66, Albuquerque”" autocomplete="off" aria-label="Place name">
+          <button class="btn primary" type="submit">Explore</button>
         </form>
       </div>
-      <p class="fine">Prototype. Demo content is hand-written; Claude-written places are AI-generated and may contain mistakes.</p>
+      <p class="fine">Prototype. Demo places are hand-written. Claude-written places are AI-generated and can contain mistakes.</p>
     </div>
   </div>
 
-  <div id="toast" hidden></div>
-  <div id="busy" hidden><div><span class="spin"></span><span id="busy-text">Loading…</span></div></div>
+  <div id="toast" class="glass holo" hidden></div>
+  <div id="busy" hidden><div class="glass holo"><span class="spin"></span><span id="busy-text">Loading…</span></div></div>
 </div>
 
 <script>
 (() => {
 "use strict";
+// ---------- Icons ----------
+const I = {
+  play:'<svg class="i" viewBox="0 0 24 24"><path d="M7 5l12 7-12 7z" fill="currentColor" stroke="none"/></svg>',
+  stop:'<svg class="i" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2" fill="currentColor" stroke="none"/></svg>',
+  spark:'<svg class="i" viewBox="0 0 24 24"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/><path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z"/></svg>',
+  pin:'<svg class="i" viewBox="0 0 24 24"><path d="M12 21s-7-6.2-7-11.5A7 7 0 0 1 19 9.5C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/></svg>',
+  lens:'<svg class="i" viewBox="0 0 24 24"><path d="M4 8V6a2 2 0 0 1 2-2h2M16 4h2a2 2 0 0 1 2 2v2M20 16v2a2 2 0 0 1-2 2h-2M8 20H6a2 2 0 0 1-2-2v-2"/><circle cx="12" cy="12" r="3.5"/></svg>',
+  arrow:'<svg class="i" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg>',
+  check:'<svg class="i" viewBox="0 0 24 24" style="width:14px;height:14px"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>',
+  mall:'<svg class="i" viewBox="0 0 24 24"><path d="M3 10l2-5h14l2 5"/><path d="M4 10v10h16V10"/><path d="M9 20v-5h6v5"/><path d="M3 10h18"/></svg>',
+  dome:'<svg class="i" viewBox="0 0 24 24"><path d="M4 20h16M6 20V11h12v9M9 20v-5M15 20v-5M12 4v3M8 11a4 4 0 0 1 8 0"/></svg>',
+  globe:'<svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3 3.5 3 14.5 0 18M12 3c-3 3.5-3 14.5 0 18"/></svg>',
+};
+$q("#ico-live").innerHTML=I.lens; $q("#go-1").innerHTML=I.arrow;
+$q("#narrate-era").innerHTML=I.play+"<span>Narrate</span>";
+$q("#ask-era").innerHTML=I.spark+"<span>Ask Claude</span>";
+$q("#change-place").innerHTML=I.pin;
+$q("#sheet-narrate").innerHTML=I.play+"<span>Narrate</span>";
+function $q(s){ return document.querySelector(s); }
+
 // ---------- Eras: the time dial ----------
+const NOW_YEAR = new Date().getFullYear();
 const ERAS = [
-  { id:"now",      label:"Today",            span:"Now",                 color:"#ece7da" },
-  { id:"c20",      label:"20th century",     span:"1900–1999",           color:"#f2c14e" },
-  { id:"c19",      label:"1800s",            span:"1800–1899",           color:"#d98e4a" },
-  { id:"colonial", label:"Empires & settlers", span:"1500–1799",         color:"#c9765a" },
-  { id:"native",   label:"Indigenous lands", span:"before contact",      color:"#b08bc4" },
-  { id:"ice",      label:"Ice Age",          span:"2.6 Myr – 11,700 yr", color:"#a9d8ea" },
-  { id:"deep",     label:"Deep time",        span:"millions of years",   color:"#99c2b5" },
+  { id:"now",      label:"Today",              short:"Now",    span:"Now",                 color:"#eef3fb", ya:0 },
+  { id:"c20",      label:"20th century",       short:"1900s",  span:"1900–1999",           color:"#f2c14e", ya:NOW_YEAR-1950 },
+  { id:"c19",      label:"The 1800s",          short:"1800s",  span:"1800–1899",           color:"#ff9a5a", ya:NOW_YEAR-1850 },
+  { id:"colonial", label:"Empires & settlers", short:"Empire", span:"1500–1799",           color:"#ff6f7d", ya:NOW_YEAR-1700 },
+  { id:"native",   label:"First peoples",      short:"Native", span:"before contact",      color:"#c08bff", ya:NOW_YEAR-1400 },
+  { id:"ice",      label:"Ice Age",            short:"Ice",    span:"2.6 Myr – 11,700 yr", color:"#7fd8ff", ya:20000 },
+  { id:"deep",     label:"Deep time",          short:"Deep",   span:"millions of years",   color:"#3fe0c5", ya:3e8 },
 ];
 const ERA = Object.fromEntries(ERAS.map(e => [e.id, e]));
 const eraColor = id => (ERA[id] || ERA.now).color;
@@ -255,7 +388,7 @@ const eraColor = id => (ERA[id] || ERA.now).color;
 const DEMOS = [
 {
   key:"kc", name:"Country Club Plaza", sub:"Kansas City, Missouri", blurb:"A 1923 shopping center, the ancestor of the strip mall",
-  lat:39.0418, lon:-94.5918,
+  lat:39.0418, lon:-94.5918, deepYa:3.0e8,
   here:{ title:"Country Club Plaza", text:"You're standing in one of the first shopping districts in the U.S. designed around the car. Developer J.C. Nichols opened it in 1923 on low ground along Brush Creek and styled it after Seville, Spain. Every strip mall you've parked at descends from places like this." },
   eras:{
     now:{ text:"Shops, restaurants and apartments sit over parking garages. Every winter since 1925, strings of lights have outlined the Plaza's rooflines, starting with a single string hung over one doorway." },
@@ -284,7 +417,7 @@ const DEMOS = [
 },
 {
   key:"phl", name:"Independence Hall", sub:"Old City, Philadelphia", blurb:"Where the Declaration and Constitution were signed",
-  lat:39.9487, lon:-75.1485,
+  lat:39.9487, lon:-75.1485, deepYa:4.8e8,
   here:{ title:"Independence National Historical Park", text:"You're in Old City, where the Declaration of Independence (1776) and the U.S. Constitution (1787) were debated and signed. The brick buildings around you were the working rooms of a colonial capital." },
   eras:{
     now:{ text:"A national park of about 20 historic buildings sits among offices, apartments and newer museums, including the Museum of the American Revolution, which opened in 2017." },
@@ -318,10 +451,11 @@ const DEMOS = [
 const S = {
   loc:null, era:"now", heading:0, headingTarget:0, pitch:90,
   fov:60, user:{lat:0, lon:0}, live:false, cam:false, compass:false,
-  labels:[], dragging:null, lastLiveFix:null
+  labels:[], dragging:null, lastLiveFix:null, locked:null, yearShown:0
 };
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const buzz = ms => { try{ navigator.vibrate && navigator.vibrate(ms); }catch{} };
 
 // ---------- Claude (only inside a Claude artifact) ----------
 let sampleFn = null, ttsApi = null;
@@ -346,29 +480,41 @@ const card = h => ["N","NE","E","SE","S","SW","W","NW"][Math.round(h/45)%8];
 
 // ---------- UI helpers ----------
 let toastT;
-function toast(msg, ms=3800){ const t=$("toast"); t.textContent=msg; t.hidden=false; clearTimeout(toastT); toastT=setTimeout(()=>t.hidden=true, ms); }
+function toast(msg, ms=3800, icon=""){ const t=$("toast"); t.innerHTML=icon+`<span>${esc(msg)}</span>`; t.hidden=false; t.style.animation="none"; void t.offsetWidth; t.style.animation=""; clearTimeout(toastT); toastT=setTimeout(()=>t.hidden=true, ms); }
 function busy(msg){ if(msg){ $("busy-text").textContent=msg; $("busy").hidden=false; } else $("busy").hidden=true; }
 
+// ---------- Discovery progress (per viewer, this browser only) ----------
+function discKey(){ return "strata:disc:" + (S.loc?.key || S.loc?.name || "x"); }
+function getDisc(){ try{ return new Set(JSON.parse(localStorage.getItem(discKey())||"[]")); }catch{ return new Set(); } }
+function addDisc(name){ const s=getDisc(); const isNew=!s.has(name); s.add(name); try{ localStorage.setItem(discKey(), JSON.stringify([...s])); }catch{} updateDisc(); return isNew; }
+function updateDisc(){
+  const total=(S.loc?.pois||[]).length, s=getDisc(), n=(S.loc?.pois||[]).filter(p=>s.has(p.name)).length;
+  $("disc-text").textContent=`${n}/${total}`;
+  $("disc-ring").style.strokeDashoffset = String(94.25*(1-(total? n/total : 0)));
+}
+
 // ---------- Start screen ----------
-DEMOS.forEach(d => {
-  const b=document.createElement("button"); b.className="opt";
-  b.innerHTML=`<b>${esc(d.name)} · ${esc(d.sub)}</b><span>${esc(d.blurb)}</span>`;
+DEMOS.forEach((d,i) => {
+  const b=document.createElement("button"); b.className="opt glass holo";
+  b.innerHTML=`<span class="ico">${i===0?I.mall:I.dome}</span><span><b>${esc(d.name)}</b><span>${esc(d.sub)} · ${esc(d.blurb)}</span></span><span class="go">${I.arrow}</span>`;
   b.onclick=()=>startDemo(d); $("demo-list").append(b);
 });
-if (hasClaude) $("live-note").textContent = "Uses your camera, GPS and compass. Inside this Claude preview the browser blocks those sensors, so you'll get the simulated view. Open the standalone version on your phone for the real lens.";
+if (hasClaude) $("live-note").textContent = "This Claude preview blocks the camera and GPS, so you'll see the simulated lens. Open the GitHub Pages link on your phone for the real thing.";
 $("go-live").onclick = startLive;
 $("any-form").onsubmit = e => { e.preventDefault(); const q=$("any-input").value.trim(); if(q) startClaudePlace(q); };
-$("change-place").onclick = () => { stopSpeech(); $("start").hidden=false; };
+$("change-place").onclick = () => { stopSpeech(); $("start").hidden=false; startBg(); };
 
+function faceNearest(){
+  const near=[...S.loc.pois].sort((a,b)=>dist(S.user,a)-dist(S.user,b))[0];
+  if(near){ S.heading=S.headingTarget=bearing(S.user,near); }
+}
 function startDemo(d){
   S.live=false; stopCamera();
   setLocation(structuredClone(d), {lat:d.lat, lon:d.lon});
-  // face the nearest landmark
-  const near=[...S.loc.pois].sort((a,b)=>dist(S.user,a)-dist(S.user,b))[0];
-  if(near){ S.heading=S.headingTarget=bearing(S.user,near); }
-  setMode("demo"); $("start").hidden=true;
-  toast("Drag the view to look around. Scrub the time dial to travel back.");
+  faceNearest(); setMode("demo"); closeStart();
+  toast("Drag to look around · slide the spectrum to time-travel", 4200, I.lens);
 }
+function closeStart(){ $("start").hidden=true; }
 
 async function startClaudePlace(q){
   if(!sampleFn) return;
@@ -377,6 +523,7 @@ async function startClaudePlace(q){
 Place: "${q}"
 Return ONLY a JSON object with this shape:
 {"name": short place name, "sub": "City, region/country", "lat": number, "lon": number,  // a spot a visitor would stand
+ "deepYearsAgo": number (approximate age in years of the bedrock or oldest geologic feature here),
  "here": {"title": string, "text": "2-3 sentences: what this spot is today and why it's interesting"},
  "eras": {"now":{"text":...}, "c20":{"text":...}, "c19":{"text":...}, "colonial":{"span":"short date range label fitting local history","text":...}, "native":{"span":..., "text":...}, "ice":{"text":...}, "deep":{"span":"age label","text":...}},
  "ground": {"ice":{"name":..., "text":"one short line", "story":"2-3 sentences"}, "deep":{"name": the bedrock or geologic setting, "text":"one short line with its age", "story":"2-3 sentences"}},
@@ -386,12 +533,11 @@ Rules: 7-10 real landmarks or historic sites within 4 km with accurate coordinat
     const data = await sampleFn.json(prompt, {modelTier:"default"});
     if(!data || typeof data.lat!=="number" || !Array.isArray(data.pois)) throw new Error("bad");
     data.pois = data.pois.filter(p => typeof p.lat==="number" && typeof p.lon==="number" && ERA[p.era]);
-    data.source = "claude";
+    if(typeof data.deepYearsAgo==="number") data.deepYa=data.deepYearsAgo;
+    data.source = "claude"; data.key = "ai:"+q.toLowerCase();
     busy(null); S.live=false; stopCamera();
     setLocation(data, {lat:data.lat, lon:data.lon});
-    const near=[...S.loc.pois].sort((a,b)=>dist(S.user,a)-dist(S.user,b))[0];
-    if(near) S.heading=S.headingTarget=bearing(S.user,near);
-    setMode("claude"); $("start").hidden=true;
+    faceNearest(); setMode("claude"); closeStart();
   }catch(err){
     busy(null);
     toast(err?.code==="rate_limited" ? "Claude is busy. Try again in a minute." : "Couldn't build that place. Try a more specific name.");
@@ -400,7 +546,6 @@ Rules: 7-10 real landmarks or historic sites within 4 km with accurate coordinat
 
 // ---------- Live mode: camera + GPS + compass ----------
 async function startLive(){
-  // iOS needs the motion permission from inside the tap
   try{
     if (typeof DeviceOrientationEvent!=="undefined" && typeof DeviceOrientationEvent.requestPermission==="function"){
       await DeviceOrientationEvent.requestPermission().catch(()=>{});
@@ -409,17 +554,16 @@ async function startLive(){
   window.addEventListener("deviceorientationabsolute", onOrient, true);
   window.addEventListener("deviceorientation", onOrient, true);
 
-  // camera
   try{
     const stream = await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:"environment"}, width:{ideal:1280}}, audio:false});
     const v=$("video"); v.srcObject=stream; v.hidden=false; await v.play().catch(()=>{});
     S.cam=true; $("scene").hidden=true;
   }catch{
-    S.cam=false; toast("Camera unavailable, showing the simulated view instead.");
+    S.cam=false; toast("Camera unavailable, showing the simulated lens instead.");
   }
 
   if(!("geolocation" in navigator)){ toast("This browser has no GPS access. Try a demo place."); return; }
-  busy("Finding you…");
+  busy("Locking onto your position…");
   navigator.geolocation.watchPosition(pos => {
     const fix={lat:pos.coords.latitude, lon:pos.coords.longitude, acc:pos.coords.accuracy};
     S.user={lat:fix.lat, lon:fix.lon};
@@ -428,7 +572,7 @@ async function startLive(){
   }, err => {
     busy(null);
     toast(err.code===1 ? "Location permission was declined. Try a demo place instead." : "Couldn't get a GPS fix. Try a demo place instead.", 5000);
-    if(!S.loc) $("start").hidden=false;
+    if(!S.loc) { $("start").hidden=false; startBg(); }
   }, {enableHighAccuracy:true, maximumAge:5000, timeout:20000});
 }
 
@@ -437,7 +581,6 @@ function onOrient(e){
   if (typeof e.webkitCompassHeading==="number") h=e.webkitCompassHeading;           // iOS
   else if ((e.absolute || e.type==="deviceorientationabsolute") && e.alpha!=null){   // Android
     const a=rad(e.alpha), b=rad(e.beta||0), g=rad(e.gamma||0);
-    // direction the back camera points, in east/north components
     const east = -(Math.cos(g)*Math.sin(a)*Math.sin(b) + Math.cos(a)*Math.sin(g));
     const north= -(Math.sin(a)*Math.sin(g) - Math.cos(a)*Math.cos(g)*Math.sin(b));
     h=(deg(Math.atan2(east,north))+360)%360;
@@ -452,10 +595,9 @@ async function getJSON(url){ const r=await fetch(url); if(!r.ok) throw new Error
 
 async function loadLive(fix){
   const {lat, lon} = fix;
-  const loc = { name:"Here", sub:"", lat, lon, live:true, source:"live", here:{title:"Here",text:""}, eras:{}, ground:{}, pois:[] };
+  const loc = { key:`live:${lat.toFixed(2)},${lon.toFixed(2)}`, name:"Here", sub:"", lat, lon, live:true, source:"live", here:{title:"Here",text:""}, eras:{}, ground:{}, pois:[] };
   const tasks = [];
 
-  // What's here now: OpenStreetMap
   tasks.push(getJSON(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lon}&zoom=18&addressdetails=1&extratags=1&namedetails=1`).then(async d => {
     const a=d.address||{};
     const kind=(d.type||d.category||"place").replace(/_/g," ");
@@ -472,7 +614,6 @@ async function loadLive(fix){
     }
   }).catch(()=>{}));
 
-  // Nearby history: Wikipedia geosearch
   tasks.push(getJSON(`https://en.wikipedia.org/w/api.php?action=query&generator=geosearch&ggscoord=${lat}|${lon}&ggsradius=10000&ggslimit=40&prop=coordinates|extracts|pageimages&exintro=1&explaintext=1&exsentences=4&exlimit=40&piprop=thumbnail&pithumbsize=480&format=json&origin=*`).then(d => {
     const pages=Object.values((d.query&&d.query.pages)||{});
     for(const p of pages){
@@ -481,17 +622,18 @@ async function loadLive(fix){
       const years=[...text.matchAll(/\b(1[0-9]{3}|20[0-2][0-9])\b/g)].map(m=>+m[1]);
       const y=years.length?Math.min(...years):null;
       const era = y==null?"now" : y>=2000?"now" : y>=1900?"c20" : y>=1800?"c19" : y>=1500?"colonial" : "native";
-      loc.pois.push({ name:p.title, lat:c.lat, lon:c.lon, era, year:y?String(y):"", fact:text.split(/(?<=\.)\s/)[0]||"", story:text||"No summary available.", img:p.thumbnail&&p.thumbnail.source, link:`https://en.wikipedia.org/?curid=${p.pageid}` });
+      const sentences=text.split(/(?<=\.)\s/);
+      loc.pois.push({ name:p.title, lat:c.lat, lon:c.lon, era, year:y?String(y):"", fact:sentences[0]||"", story:sentences.slice(1).join(" ")||"", img:p.thumbnail&&p.thumbnail.source, link:`https://en.wikipedia.org/?curid=${p.pageid}` });
     }
   }).catch(()=>{}));
 
-  // Deep time: Macrostrat geologic map
   tasks.push(getJSON(`https://macrostrat.org/api/v2/geologic_units/map?lat=${lat}&lng=${lon}`).then(d => {
     const u=d.success&&d.success.data&&d.success.data[0]; if(!u) return;
     const ages = u.b_int_name===u.t_int_name ? u.b_int_name : `${u.b_int_name} to ${u.t_int_name}`;
     const myr = `${Math.round(u.b_age)}–${Math.round(u.t_age)} million years old`;
+    loc.deepYa = u.b_age*1e6;
     loc.eras.deep = { span:`${Math.round(u.b_age)} Myr ago`, text:`The bedrock mapped under you is the ${u.name}, made of ${u.lith||"sedimentary rock"}. It formed in the ${ages}, ${myr}. ${u.descrip||""}`.trim() };
-    loc.ground.deep = { name:u.name, text:`${ages}, ${myr}`, color:u.color||"#99c2b5", story:loc.eras.deep.text };
+    loc.ground.deep = { name:u.name, text:`${ages} · ${myr}`, color:u.color||"#3fe0c5", story:loc.eras.deep.text };
   }).catch(()=>{}));
 
   await Promise.all(tasks);
@@ -500,9 +642,9 @@ async function loadLive(fix){
   const count = id => loc.pois.filter(p=>p.era===id).length;
   const fill = (id, txt) => { if(!loc.eras[id]) loc.eras[id]={text:txt}; };
   fill("now", (loc.here.text + (loc.townText?` ${loc.townText}`:"")).trim() || "Look around: nearby places with stories are tagged in the view.");
-  fill("c20", count("c20") ? `${count("c20")} nearby places have 20th-century stories. Tap a tag to read one.` : "No 20th-century stories found within 10 km.");
-  fill("c19", count("c19") ? `${count("c19")} nearby places have stories from the 1800s. Tap a tag to read one.` : "No 1800s stories found within 10 km.");
-  fill("colonial", count("colonial") ? `${count("colonial")} nearby places date from before 1800. Tap a tag to read one.` : "No pre-1800 sites found nearby in Wikipedia.");
+  fill("c20", count("c20") ? `${count("c20")} nearby places have 20th-century stories. Center one in the reticle to lock on.` : "No 20th-century stories found within 10 km.");
+  fill("c19", count("c19") ? `${count("c19")} nearby places have stories from the 1800s. Center one in the reticle to lock on.` : "No 1800s stories found within 10 km.");
+  fill("colonial", count("colonial") ? `${count("colonial")} nearby places date from before 1800. Center one in the reticle to lock on.` : "No pre-1800 sites found nearby in Wikipedia.");
   fill("native", "Open data rarely covers Indigenous history well. native-land.ca maps whose traditional territory you're on; this is a layer a curated or AI-written source would fill.");
   fill("ice", "About 20,000 years ago, at the peak of the last Ice Age, sea level was roughly 120 meters lower and ice sheets covered much of North America and northern Europe. Local Ice Age detail needs a richer data source than this prototype uses.");
   fill("deep", "No geologic map unit was found for this spot.");
@@ -510,8 +652,8 @@ async function loadLive(fix){
   const wasNew = !S.loc || !S.loc.live;
   setLocation(loc, {lat, lon});
   setMode("live");
-  $("start").hidden=true;
-  if(wasNew) toast(loc.pois.length ? `${loc.pois.length} places with stories within 10 km.` : "No Wikipedia places found nearby.");
+  closeStart();
+  if(wasNew) toast(loc.pois.length ? `${loc.pois.length} places with stories within 10 km` : "No Wikipedia places found nearby", 3800, I.spark);
 }
 
 function stopCamera(){
@@ -524,46 +666,85 @@ function stopCamera(){
 function setLocation(loc, user){
   S.loc=loc; S.user={...user};
   $("place-name").textContent=loc.here?.title || loc.name;
-  updatePlaceSub(); buildDial(); setEra(S.era);
+  updatePlaceSub(); buildDial(); updateDisc(); setEra(S.era, true);
 }
 function updatePlaceSub(){
   if(!S.loc) return;
   $("place-sub").textContent = `${S.loc.sub ? S.loc.sub+" · " : ""}${S.user.lat.toFixed(4)}, ${S.user.lon.toFixed(4)}`;
 }
 function setMode(m){
-  const c=$("mode-chip");
-  c.className="chip " + (m==="live"?"live":"demo");
-  c.textContent = m==="live" ? (S.cam?"Live · camera":"Live · GPS") : m==="claude" ? "Claude-written" : "Demo";
+  const dot=$("mode-dot"); dot.className = m==="live"?"live": m==="claude"?"ai":"";
+  $("mode-label").textContent = m==="live" ? (S.cam?"Live · camera":"Live · GPS") : m==="claude" ? "AI-written" : "Demo";
 }
 function buildDial(){
-  const dial=$("dial"); dial.innerHTML="";
+  $("dial-ticks").innerHTML = ERAS.map(()=>"<span></span>").join("");
+  const L=$("dial-labels"); L.innerHTML="";
   ERAS.forEach(e => {
-    const b=document.createElement("button"); b.className="era"; b.style.setProperty("--c", e.color);
-    const span=(S.loc?.eras?.[e.id]?.span) || e.span;
-    b.innerHTML=`<b>${esc(e.label)}</b><small>${esc(span)}</small>`;
+    const b=document.createElement("button"); b.textContent=e.short; b.setAttribute("aria-label", e.label);
     b.setAttribute("aria-pressed", String(e.id===S.era));
-    b.onclick=()=>{ setEra(e.id); b.scrollIntoView({inline:"center",block:"nearest",behavior:"smooth"}); };
-    dial.append(b);
+    b.onclick=()=>setEra(e.id); L.append(b);
   });
 }
-function setEra(id){
-  S.era=id; stopSpeech();
+// scrub the spectrum by dragging
+(function(){
+  const track=$("dial"); let on=false;
+  const pick = x => { const r=$("dial-track").getBoundingClientRect(); const i=Math.max(0,Math.min(ERAS.length-1,Math.floor((x-r.left)/r.width*ERAS.length))); if(ERAS[i].id!==S.era) setEra(ERAS[i].id); };
+  track.addEventListener("pointerdown", e => { if(e.target.closest("#dial-labels")) return; on=true; track.setPointerCapture(e.pointerId); pick(e.clientX); });
+  track.addEventListener("pointermove", e => { if(on) pick(e.clientX); });
+  track.addEventListener("pointerup", () => on=false);
+  track.addEventListener("pointercancel", () => on=false);
+  track.addEventListener("keydown", e => {
+    const i=ERAS.findIndex(x=>x.id===S.era);
+    if(e.key==="ArrowRight" && i<ERAS.length-1){ setEra(ERAS[i+1].id); e.preventDefault(); }
+    if(e.key==="ArrowLeft" && i>0){ setEra(ERAS[i-1].id); e.preventDefault(); }
+  });
+})();
+
+function eraYa(id){ return id==="deep" ? (S.loc?.deepYa || ERA.deep.ya) : ERA[id].ya; }
+function setEra(id, quiet){
+  const changed = id!==S.era; S.era=id; stopSpeech();
   const e=ERA[id], loc=S.loc; if(!loc) return;
-  const col = id==="deep" && loc.ground?.deep?.color ? loc.ground.deep.color : e.color;
-  document.documentElement.style.setProperty("--era", col);
-  [...$("dial").children].forEach((b,i)=>b.setAttribute("aria-pressed", String(ERAS[i].id===id)));
+  document.documentElement.style.setProperty("--era", e.color);
+  const i=ERAS.findIndex(x=>x.id===id);
+  $("dial-knob").style.left = `${(i+.5)/ERAS.length*100}%`;
+  [...$("dial-labels").children].forEach((b,j)=>b.setAttribute("aria-pressed", String(j===i)));
   $("story-title").textContent = e.label;
   $("story-span").textContent = loc.eras?.[id]?.span || e.span;
   const st=$("story-text"); st.classList.remove("open");
   st.textContent = (id==="now" && loc.here?.text && !loc.live ? loc.here.text + " " : "") + (loc.eras?.[id]?.text || "No story written for this era yet.");
-  // beneath-you card
   const g=loc.ground?.[id];
   $("ground").hidden=!g;
-  if(g){ $("ground-name").textContent="Beneath you: "+g.name; $("ground-text").textContent=g.text; $("ground").style.setProperty("--gc", g.color||col); $("ground").querySelector(".swatch").style.setProperty("--gc", g.color||col); }
+  if(g){ $("ground-name").textContent=g.name; $("ground-text").textContent=g.text; $("ground").querySelector(".swatch").style.setProperty("--gc", g.color||e.color); }
   applyTint(id);
   buildLabels();
+  animateYear(eraYa(id));
+  if(changed && !quiet){
+    const w=$("warp"); w.classList.remove("go"); void w.offsetWidth; w.classList.add("go");
+    buzz(12);
+  }
   requestAnimationFrame(measureDock);
 }
+
+// rolling year counter (log-scale, so 300 million years doesn't take forever)
+let yearAnim=0;
+function fmtYear(ya){
+  if(ya < 1500) { const y=Math.round(NOW_YEAR-ya); return [String(y), ya<1?"present day":"CE"]; }
+  if(ya < 1e6) return [Math.round(ya/100)*100>=10000 ? Math.round(ya/1000).toLocaleString()+"k" : Math.round(ya).toLocaleString(), "years ago"];
+  return [Math.round(ya/1e6).toLocaleString()+"M", "years ago"];
+}
+function animateYear(target){
+  cancelAnimationFrame(yearAnim);
+  const from=S.yearShown, t0=performance.now(), dur=900;
+  const lf=Math.log10(from+1), lt=Math.log10(target+1);
+  const step = now => {
+    const k=Math.min(1,(now-t0)/dur), ease=1-Math.pow(1-k,3);
+    const v=Math.pow(10, lf+(lt-lf)*ease)-1; S.yearShown=v;
+    const [n,u]=fmtYear(v); $("year").textContent=n; $("year-unit").textContent=u;
+    if(k<1) yearAnim=requestAnimationFrame(step); else S.yearShown=target;
+  };
+  yearAnim=requestAnimationFrame(step);
+}
+
 function measureDock(){ document.documentElement.style.setProperty("--dock-h", $("dock").offsetHeight+"px"); }
 $("story-text").onclick = () => { $("story-text").classList.toggle("open"); requestAnimationFrame(measureDock); };
 window.addEventListener("resize", () => { measureDock(); sizeCanvases(); });
@@ -573,9 +754,9 @@ const TINTS = {
   c20:{f:"saturate(.7) contrast(1.05)", t:"#c9a25a"},
   c19:{f:"sepia(.75) contrast(1.05)", t:"#8a5a2b"},
   colonial:{f:"sepia(.9) contrast(.95) brightness(.95)", t:"#6b3d22"},
-  native:{f:"saturate(.6) brightness(.95)", t:"#4f6b3a"},
-  ice:{f:"saturate(.25) brightness(1.15)", t:"#9fc8e0"},
-  deep:{f:"saturate(.5) hue-rotate(-20deg) brightness(.85)", t:"#0f5d66"},
+  native:{f:"saturate(.6) brightness(.95)", t:"#5b3f7a"},
+  ice:{f:"saturate(.25) brightness(1.15)", t:"#9fd8f0"},
+  deep:{f:"saturate(.5) hue-rotate(-20deg) brightness(.85)", t:"#0f6d6a"},
 };
 function applyTint(id){
   const t=TINTS[id]; $("video").style.filter=t.f;
@@ -588,14 +769,17 @@ function visiblePois(){
   const within = all.filter(p => dist(S.user,p) < 12000);
   return S.era==="now" ? within : within.filter(p => p.era===S.era);
 }
+function badgeText(p){ const y=(p.year||"").match(/\d{4}/); return y ? "’"+y[0].slice(2) : ERA[p.era].short.slice(0,3); }
 function buildLabels(){
-  const box=$("labels"); box.innerHTML="";
+  const box=$("labels"); box.innerHTML=""; const disc=getDisc();
+  S.locked=null; $("reticle").classList.remove("lock"); $("lockcall").hidden=true;
   S.labels = visiblePois().map(p => {
     const el=document.createElement("button"); el.className="tag"; el.style.setProperty("--c", eraColor(p.era));
-    el.innerHTML=`<span class="tag-yr">${esc(p.year||ERA[p.era].label)}</span><span class="tag-name">${esc(p.name)}</span><span class="tag-d"></span>`;
+    el.innerHTML=`<span class="tag-card"><span class="tag-badge">${esc(badgeText(p))}</span><span class="tag-name">${esc(p.name)}</span><span class="tag-meta"><span class="d"></span>${disc.has(p.name)?`<span class="ok">${I.check}</span>`:""}</span></span><span class="tag-stem"></span><span class="tag-ring"></span>`;
+    el.setAttribute("aria-label", `${p.name}, ${ERA[p.era].label}${p.year?", "+p.year:""}`);
     el.onclick=ev=>{ ev.stopPropagation(); openPoi(p); };
     box.append(el);
-    return {p, el, dEl:el.querySelector(".tag-d"), w:0};
+    return {p, el, dEl:el.querySelector(".d"), w:0};
   });
 }
 
@@ -603,36 +787,49 @@ function buildLabels(){
 let sheetPoi=null;
 function openPoi(p){
   sheetPoi=p; stopSpeech();
-  const d=dist(S.user,p), b=bearing(S.user,p);
-  const pill=$("sheet-era"); pill.style.setProperty("--c", eraColor(p.era)); pill.textContent=`${ERA[p.era].label}${p.year?" · "+p.year:""}`;
-  $("sheet-meta").textContent = p.ground ? "under your feet" : `${fmtDist(d)} · ${Math.round(b)}° ${card(b)}`;
+  const d=dist(S.user,p), b=bearing(S.user,p), c=eraColor(p.era);
+  $("sheet-card").style.setProperty("--c", c);
+  const pill=$("sheet-era"); pill.style.setProperty("--c", c); pill.textContent=ERA[p.era].label;
+  $("sheet-meta").textContent = p.ground ? "directly beneath you" : p.area ? "this whole area" : `${fmtDist(d)} · ${Math.round(b)}° ${card(b)}`;
+  const yr=(p.year||"").match(/\d{4}/);
+  $("sheet-big").textContent = yr ? yr[0] : (p.big||"");
   $("sheet-title").textContent=p.name;
-  $("sheet-story").textContent=p.story||p.fact||"";
+  $("sheet-fact").textContent=p.fact||""; $("sheet-fact").hidden=!p.fact;
+  $("sheet-story").textContent=p.story||"";
   const img=$("sheet-img"); if(p.img){ img.src=p.img; img.hidden=false; } else { img.hidden=true; img.removeAttribute("src"); }
   const strata=$("sheet-strata"); strata.hidden=!p.ground;
-  if(p.ground) strata.style.setProperty("--sb", `repeating-linear-gradient(0deg, rgba(0,0,0,.2) 0 4px, transparent 4px 12px), ${p.color||"#99c2b5"}`);
+  if(p.ground) strata.style.setProperty("--sb", `repeating-linear-gradient(0deg, rgba(0,0,0,.22) 0 4px, transparent 4px 12px), ${p.color||c}`);
   const link=$("sheet-link"); if(p.link){ link.href=p.link; link.hidden=false; } else link.hidden=true;
-  const src = S.loc.source==="claude" ? "Written by Claude for this prototype. Check important facts." :
+  $("sheet-source").textContent = S.loc.source==="claude" ? "Written by Claude for this prototype. Check important facts." :
               S.loc.live ? (p.ground ? "Geology: Macrostrat (CC-BY 4.0)." : "Text and image: Wikipedia (CC BY-SA).") :
               "Demo content written for this prototype.";
-  $("sheet-source").textContent=src;
+  // discovery
+  const nb=$("sheet-new"); nb.hidden=true;
+  if(!p.ground && !p.area && (S.loc.pois||[]).includes(p)){
+    if(addDisc(p.name)){ nb.innerHTML=I.check+"<span>New discovery</span>"; nb.hidden=false; buzz([10,40,10]); buildLabels(); }
+  }
+  // ask
   $("ask-answer").textContent=""; $("ask-input").value="";
-  $("ask-label").textContent = `Ask Claude about ${p.name}`;
-  $("sheet").hidden=false; $("sheet-close").focus();
+  $("ask-label").innerHTML = I.spark + `<span>Ask Claude about ${esc(p.name)}</span>`;
+  const sugg = p.area ? ["What would I have seen here?","What did people eat?","What sounds would I hear?"]
+              : p.ground ? ["How do we know its age?","What fossils are in it?","What did this place look like then?"]
+              : ["What did it look like back then?","Who was involved?","What's a surprising fact?"];
+  $("ask-suggest").innerHTML=""; sugg.forEach(s=>{ const b=document.createElement("button"); b.textContent=s; b.onclick=()=>{ $("ask-input").value=s; $("ask-go").click(); }; $("ask-suggest").append(b); });
+  $("sheet").hidden=false; $("sheet-card").scrollTop=0; $("sheet-close").focus();
 }
 function closeSheet(){ $("sheet").hidden=true; stopSpeech(); sheetPoi=null; if(askCtl) askCtl.abort(); }
 $("sheet-close").onclick=closeSheet;
 $("sheet").onclick=e=>{ if(e.target.id==="sheet") closeSheet(); };
 document.addEventListener("keydown", e => { if(e.key==="Escape" && !$("sheet").hidden) closeSheet(); });
-$("ground").onclick=()=>{ const g=S.loc.ground[S.era]; openPoi({ name:g.name, era:S.era, year:"", story:g.story||g.text, ground:true, color:g.color, lat:S.user.lat, lon:S.user.lon }); };
+$("ground").onclick=()=>{ const g=S.loc.ground[S.era]; openPoi({ name:g.name, era:S.era, year:"", big:fmtYear(eraYa(S.era))[0], fact:g.text, story:g.story||"", ground:true, color:g.color, lat:S.user.lat, lon:S.user.lon }); };
+$("lockcall").onclick=()=>{ if(S.locked) openPoi(S.locked.p); };
 
-// Ask Claude
 let askCtl=null;
 async function askClaude(question, context, out){
   if(!sampleFn) return;
   if(askCtl) askCtl.abort(); askCtl=new AbortController();
   out.textContent="Thinking…";
-  const prompt=`You are the narrator of a museum-style AR app. The visitor is at ${S.loc.here?.title||S.loc.name}${S.loc.sub?", "+S.loc.sub:""} (lat ${S.user.lat.toFixed(4)}, lon ${S.user.lon.toFixed(4)}).
+  const prompt=`You are the narrator of a museum-style AR discovery app. The visitor is at ${S.loc.here?.title||S.loc.name}${S.loc.sub?", "+S.loc.sub:""} (lat ${S.user.lat.toFixed(4)}, lon ${S.user.lon.toFixed(4)}).
 ${context}
 Visitor's question: ${question}
 Answer in 2-4 plain, vivid sentences for a curious adult. If you're unsure of a local detail, say so briefly instead of inventing it.`;
@@ -645,27 +842,29 @@ Answer in 2-4 plain, vivid sentences for a curious adult. If you're unsure of a 
   }
 }
 $("ask-go").onclick=()=>{ const q=$("ask-input").value.trim(); if(!q||!sheetPoi) return;
-  askClaude(q, `They are looking at "${sheetPoi.name}" (${ERA[sheetPoi.era].label}${sheetPoi.year?", "+sheetPoi.year:""}). What the app already told them: ${sheetPoi.story}`, $("ask-answer")); };
+  askClaude(q, `They are looking at "${sheetPoi.name}" (${ERA[sheetPoi.era].label}${sheetPoi.year?", "+sheetPoi.year:""}). What the app already told them: ${sheetPoi.fact||""} ${sheetPoi.story||""}`, $("ask-answer")); };
 $("ask-input").addEventListener("keydown", e=>{ if(e.key==="Enter") $("ask-go").click(); });
 $("ask-era").onclick=()=>{
   const e=ERA[S.era];
-  openPoi({ name:`${e.label} here`, era:S.era, year:S.loc.eras?.[S.era]?.span||e.span, story:$("story-text").textContent, ground:false, lat:S.user.lat, lon:S.user.lon });
-  $("sheet-meta").textContent="this whole area"; $("ask-input").placeholder="What would I have seen standing here?"; $("ask-input").focus();
+  openPoi({ name:`${e.label} here`, era:S.era, year:"", big:fmtYear(eraYa(S.era))[0], story:$("story-text").textContent, area:true, lat:S.user.lat, lon:S.user.lon });
+  $("ask-input").focus();
 };
 
 // ---------- Narration ----------
 let speaking=false;
-function stopSpeech(){ speaking=false; try{ ttsApi&&ttsApi.stop(); }catch{} try{ window.speechSynthesis&&speechSynthesis.cancel(); }catch{} $("narrate-era").textContent="▶ Narrate"; $("sheet-narrate").textContent="▶ Narrate"; }
-async function speak(text, btn){
+function setNarrBtns(on){ const h=(on?I.stop:I.play)+`<span>${on?"Stop":"Narrate"}</span>`; $("narrate-era").innerHTML=on&&speakingFrom==="era"?h:I.play+"<span>Narrate</span>"; $("sheet-narrate").innerHTML=on&&speakingFrom==="sheet"?h:I.play+"<span>Narrate</span>"; }
+let speakingFrom="";
+function stopSpeech(){ speaking=false; try{ ttsApi&&ttsApi.stop(); }catch{} try{ window.speechSynthesis&&speechSynthesis.cancel(); }catch{} setNarrBtns(false); }
+async function speak(text, from){
   if(speaking){ stopSpeech(); return; }
-  speaking=true; btn.textContent="■ Stop";
-  const done=()=>{ if(speaking){ speaking=false; btn.textContent="▶ Narrate"; } };
+  speaking=true; speakingFrom=from; setNarrBtns(true);
+  const done=()=>{ if(speaking){ speaking=false; setNarrBtns(false); } };
   if(ttsApi){ try{ await ttsApi.speak(text.slice(0,2000)); }catch{} done(); return; }
-  if("speechSynthesis" in window){ const u=new SpeechSynthesisUtterance(text); u.rate=1; u.onend=done; u.onerror=done; speechSynthesis.speak(u); return; }
+  if("speechSynthesis" in window){ const u=new SpeechSynthesisUtterance(text); u.onend=done; u.onerror=done; speechSynthesis.speak(u); return; }
   done(); toast("Narration isn't available in this browser.");
 }
-$("narrate-era").onclick=()=>speak(`${$("story-title").textContent}. ${$("story-text").textContent}`, $("narrate-era"));
-$("sheet-narrate").onclick=()=>speak(`${$("sheet-title").textContent}. ${$("sheet-story").textContent}`, $("sheet-narrate"));
+$("narrate-era").onclick=()=>speak(`${$("story-title").textContent}. ${$("story-text").textContent}`, "era");
+$("sheet-narrate").onclick=()=>speak(`${$("sheet-title").textContent}. ${$("sheet-fact").textContent} ${$("sheet-story").textContent}`, "sheet");
 
 // ---------- Look around by dragging ----------
 const lens=$("lens");
@@ -674,10 +873,11 @@ lens.addEventListener("pointermove", e => { if(!S.dragging) return; const dx=e.c
 lens.addEventListener("pointerup", () => S.dragging=null);
 lens.addEventListener("pointercancel", () => S.dragging=null);
 document.addEventListener("keydown", e => {
-  if(!$("start").hidden || !$("sheet").hidden) return;
+  if(!$("start").hidden || !$("sheet").hidden || e.target.closest?.("#dial")) return;
   if(e.key==="ArrowLeft"){ S.headingTarget=(S.headingTarget-10+360)%360; }
   if(e.key==="ArrowRight"){ S.headingTarget=(S.headingTarget+10)%360; }
 });
+$("dial").tabIndex=0;
 
 // ---------- Canvases ----------
 const scene=$("scene"), sctx=scene.getContext("2d");
@@ -687,30 +887,33 @@ let DPR=1;
 function sizeCanvases(){
   DPR=Math.min(2, window.devicePixelRatio||1);
   scene.width=innerWidth*DPR; scene.height=innerHeight*DPR;
-  tape.width=innerWidth*DPR; tape.height=26*DPR;
+  tape.width=innerWidth*DPR; tape.height=28*DPR;
+  const sb=$("start-bg"); sb.width=innerWidth*DPR; sb.height=innerHeight*DPR;
 }
 sizeCanvases();
 
 function hash(n){ const s=Math.sin(n*127.1+311.7)*43758.5453; return s-Math.floor(s); }
-function noise(az, step, seed){ // periodic over 360°
+function noise(az, step, seed){
   const n=Math.round(360/step), t=((az%360)+360)%360/step, i=Math.floor(t), f=t-i;
   const a=hash((i%n)+seed*1000), b=hash(((i+1)%n)+seed*1000), u=f*f*(3-2*f);
   return a+(b-a)*u;
 }
 const SKY = {
-  now:     {sky:["#14202e","#4d6f8f","#e2b98a"], far:"#2a3a48", near:"#10161c", ground:["#1b2228","#0c0f12"], style:"city"},
-  c20:     {sky:["#1f2530","#7c8290","#d9b989"], far:"#3a4048", near:"#1a1c1f", ground:["#2a2a28","#121210"], style:"city"},
-  c19:     {sky:["#2e261d","#8f7556","#e4c896"], far:"#5a4a38", near:"#2a2118", ground:["#3a2f22","#17120c"], style:"town"},
-  colonial:{sky:["#2a2524","#7d6a58","#dcc095"], far:"#5c4d40", near:"#2b221c", ground:["#3b3023","#16110c"], style:"colonial"},
-  native:  {sky:["#1a2725","#56786a","#e4c98a"], far:"#3d5a48", near:"#1b2a20", ground:["#2b3a26","#10170e"], style:"forest"},
-  ice:     {sky:["#2a3b4c","#9cb6c8","#eef3f6"], far:"#c8d7e0", near:"#e8eff3", ground:["#dce6ec","#a9bccb"], style:"ice"},
-  deep:    {sky:["#041a22","#0d4652","#3a8a86"], far:"#0f4d58", near:"#0a3640", ground:["#0e4a55","#04161b"], style:"sea"},
+  now:     {sky:["#04060c","#16243f","#3a3f6e"], glow:"#67e8f9", far:"#121a2c", near:"#05080f", ground:["#070b14","#020306"], style:"city"},
+  c20:     {sky:["#0b0a10","#2b2638","#6d5a4a"], glow:"#f2c14e", far:"#211d26", near:"#0c0a0e", ground:["#120f10","#050404"], style:"city"},
+  c19:     {sky:["#120c08","#3c2a1c","#8a6240"], glow:"#ff9a5a", far:"#2c2016", near:"#120c08", ground:["#1a120b","#070403"], style:"town"},
+  colonial:{sky:["#120809","#3a1c22","#86504a"], glow:"#ff6f7d", far:"#2c171b", near:"#12080a", ground:["#1a0d0f","#070304"], style:"colonial"},
+  native:  {sky:["#0b0716","#2a1c48","#5f4a86"], glow:"#c08bff", far:"#1d1636", near:"#0b0918", ground:["#100c1d","#04030a"], style:"forest"},
+  ice:     {sky:["#0a1a2a","#3f7a9c","#cfeefa"], glow:"#7fd8ff", far:"#9cc6dc", near:"#dff1f8", ground:["#cfe6f0","#6f97ad"], style:"ice"},
+  deep:    {sky:["#010d10","#03323a","#0b6a68"], glow:"#3fe0c5", far:"#06424a", near:"#043038", ground:["#063d45","#010c0f"], style:"sea"},
 };
 function drawScene(t){
   if(S.cam) return;
   const W=scene.width, H=scene.height, k=SKY[S.era], hz=horizonY()*DPR;
-  const g=sctx.createLinearGradient(0,0,0,hz); g.addColorStop(0,k.sky[0]); g.addColorStop(.7,k.sky[1]); g.addColorStop(1,k.sky[2]);
+  const g=sctx.createLinearGradient(0,0,0,hz); g.addColorStop(0,k.sky[0]); g.addColorStop(.65,k.sky[1]); g.addColorStop(1,k.sky[2]);
   sctx.fillStyle=g; sctx.fillRect(0,0,W,hz+1);
+  // stars
+  if(k.style!=="ice"){ for(let i=0;i<90;i++){ const az=hash(i+.5)*360, rel=angDiff(az,S.heading); if(Math.abs(rel)>S.fov/2) continue; const x=(rel/S.fov+.5)*W, y=hash(i+2.2)*hz*.75; const tw=.35+.35*Math.sin(t/700+i); sctx.fillStyle=`rgba(230,240,255,${tw})`; sctx.fillRect(x,y,1.4*DPR,1.4*DPR);} }
   const gg=sctx.createLinearGradient(0,hz,0,H); gg.addColorStop(0,k.ground[0]); gg.addColorStop(1,k.ground[1]);
   sctx.fillStyle=gg; sctx.fillRect(0,hz,W,H-hz);
   const azAt = x => S.heading + (x/W-.5)*S.fov;
@@ -728,27 +931,27 @@ function drawScene(t){
     else if(k.style==="colonial"){ const b=Math.floor(az/2.2), r=hash(b+11), f=az/2.2-b; const base=r<.35?0:8+r*16; h= base? base+(1-Math.abs(2*f-1))*8 : 0; if(r>.95) h=base+ (1-Math.abs(2*f-1))**3*90; }
     else if(k.style==="forest"){ h = 14 + noise(az,1,4)*26 + noise(az,.5,5)*12; }
     else if(k.style==="ice"){ h = 4 + noise(az,6,6)*10; }
-    else if(k.style==="sea"){ h = 0; }
     sctx.lineTo(x, hz - h*DPR);
   }
   sctx.lineTo(W,hz); sctx.closePath(); sctx.fill();
-  // lit windows today
   if(S.era==="now"){
-    sctx.fillStyle="rgba(255,214,150,.55)";
     for(let x=0;x<W;x+=7*DPR){ const az=((azAt(x)%360)+360)%360, b=Math.floor(az/2.5), r=hash(b+7); if(r<.18) continue;
-      const hh=(r<.85?8+r*60:90+hash(b)*140); for(let y=8;y<hh-4;y+=9){ if(hash(b*31+y+Math.floor(x/(7*DPR)))>.72) sctx.fillRect(x,hz-y*DPR,2*DPR,3*DPR); } }
+      const hh=(r<.85?8+r*60:90+hash(b)*140); for(let y=8;y<hh-4;y+=9){ const q=hash(b*31+y+Math.floor(x/(7*DPR))); if(q>.72){ sctx.fillStyle= q>.93?"rgba(192,139,255,.7)":"rgba(103,232,249,.55)"; sctx.fillRect(x,hz-y*DPR,2*DPR,3*DPR);} } }
   }
-  // sea: wave lines; deep time also gets drifting "plankton"
+  // horizon glow line
+  const hg=sctx.createLinearGradient(0,hz-30*DPR,0,hz+30*DPR); hg.addColorStop(0,"transparent"); hg.addColorStop(.5,k.glow+"55"); hg.addColorStop(1,"transparent");
+  sctx.fillStyle=hg; sctx.fillRect(0,hz-30*DPR,W,60*DPR);
+  sctx.fillStyle=k.glow+"cc"; sctx.fillRect(0,hz-.5*DPR,W,1*DPR);
   if(k.style==="sea"){
-    sctx.strokeStyle="rgba(160,230,220,.18)"; sctx.lineWidth=1*DPR;
+    sctx.strokeStyle="rgba(120,255,230,.16)"; sctx.lineWidth=1*DPR;
     for(let i=1;i<14;i++){ const y=hz+(i*i)*3.2*DPR; sctx.beginPath(); for(let x=0;x<=W;x+=8*DPR){ const az=azAt(x); sctx.lineTo(x, y+Math.sin(az*.4+i+t/900)*2*DPR*i*.4); } sctx.stroke(); }
-    sctx.fillStyle="rgba(200,255,240,.35)";
-    for(let i=0;i<60;i++){ const az=hash(i)*360, rel=angDiff(az,S.heading); if(Math.abs(rel)>S.fov/2) continue; const x=(rel/S.fov+.5)*W; const y=((hash(i+9)*H*.9 + t/40*(.3+hash(i+3)))%(H*.9)); sctx.fillRect(x,y,1.5*DPR,1.5*DPR); }
-  }
-  // ground perspective lines
-  if(k.style!=="sea"){
-    sctx.strokeStyle= k.style==="ice" ? "rgba(60,90,110,.12)" : "rgba(236,231,218,.06)"; sctx.lineWidth=1*DPR;
+    sctx.fillStyle="rgba(180,255,240,.4)";
+    for(let i=0;i<70;i++){ const az=hash(i)*360, rel=angDiff(az,S.heading); if(Math.abs(rel)>S.fov/2) continue; const x=(rel/S.fov+.5)*W; const y=((hash(i+9)*H*.9 + t/40*(.3+hash(i+3)))%(H*.9)); sctx.fillRect(x,y,1.6*DPR,1.6*DPR); }
+  } else {
+    // neon ground grid
+    sctx.strokeStyle = k.style==="ice" ? "rgba(40,90,120,.18)" : k.glow+"22"; sctx.lineWidth=1*DPR;
     for(let a=0;a<360;a+=10){ const rel=angDiff(a,S.heading); if(Math.abs(rel)>S.fov) continue; const xh=(rel/S.fov+.5)*W; sctx.beginPath(); sctx.moveTo(xh,hz); sctx.lineTo(W/2+(xh-W/2)*7,H); sctx.stroke(); }
+    for(let i=1;i<9;i++){ const y=hz+(H-hz)*Math.pow(i/9,1.8); sctx.beginPath(); sctx.moveTo(0,y); sctx.lineTo(W,y); sctx.stroke(); }
   }
 }
 function horizonY(){
@@ -759,64 +962,113 @@ function horizonY(){
 }
 function drawTape(){
   const W=tape.width, H=tape.height; tctx.clearRect(0,0,W,H);
-  tctx.font=`${10*DPR}px "JetBrains Mono", monospace`; tctx.textAlign="center"; tctx.textBaseline="middle";
+  tctx.font=`600 ${10*DPR}px "JetBrains Mono", monospace`; tctx.textAlign="center"; tctx.textBaseline="middle";
   for(let a=0;a<360;a+=5){
     const rel=angDiff(a,S.heading); if(Math.abs(rel)>S.fov/2+5) continue;
     const x=(rel/S.fov+.5)*W; const major=a%45===0;
-    tctx.fillStyle= major? "rgba(236,231,218,.9)" : "rgba(236,231,218,.35)";
-    tctx.fillRect(x-.5*DPR, major?2*DPR:6*DPR, 1*DPR, major?8*DPR:4*DPR);
-    if(major) tctx.fillText(["N","NE","E","SE","S","SW","W","NW"][a/45], x, 18*DPR);
+    tctx.fillStyle= major? "rgba(238,243,251,.95)" : "rgba(238,243,251,.3)";
+    tctx.fillRect(x-.5*DPR, major?3*DPR:7*DPR, 1*DPR, major?8*DPR:4*DPR);
+    if(major) tctx.fillText(["N","NE","E","SE","S","SW","W","NW"][a/45], x, 20*DPR);
   }
-  tctx.fillStyle="#d9a55b"; tctx.beginPath(); tctx.moveTo(W/2-5*DPR,0); tctx.lineTo(W/2+5*DPR,0); tctx.lineTo(W/2,6*DPR); tctx.fill();
+  tctx.fillStyle="#67e8f9"; tctx.beginPath(); tctx.moveTo(W/2-5*DPR,0); tctx.lineTo(W/2+5*DPR,0); tctx.lineTo(W/2,6*DPR); tctx.fill();
 }
-function drawRadar(){
+function drawRadar(t){
   const W=radar.width, c=W/2, r=c-6; rctx.clearRect(0,0,W,W);
-  rctx.strokeStyle="rgba(236,231,218,.18)"; rctx.lineWidth=2;
-  [1,.5].forEach(f=>{ rctx.beginPath(); rctx.arc(c,c,r*f,0,Math.PI*2); rctx.stroke(); });
-  // view cone (always pointing up)
-  rctx.fillStyle="rgba(217,165,91,.16)"; rctx.beginPath(); rctx.moveTo(c,c);
+  const bg=rctx.createRadialGradient(c,c,0,c,c,r); bg.addColorStop(0,"rgba(103,232,249,.10)"); bg.addColorStop(1,"rgba(103,232,249,0)");
+  rctx.fillStyle=bg; rctx.beginPath(); rctx.arc(c,c,r,0,Math.PI*2); rctx.fill();
+  rctx.strokeStyle="rgba(238,243,251,.14)"; rctx.lineWidth=1.5;
+  [1,.66,.33].forEach(f=>{ rctx.beginPath(); rctx.arc(c,c,r*f,0,Math.PI*2); rctx.stroke(); });
+  // sweep
+  const sw=(t/1400)%(Math.PI*2);
+  for(let i=0;i<24;i++){ const a0=sw-i*.035; rctx.strokeStyle=`rgba(103,232,249,${.5*(1-i/24)})`; rctx.beginPath(); rctx.moveTo(c,c); rctx.lineTo(c+Math.cos(a0)*r, c+Math.sin(a0)*r); rctx.stroke(); }
+  // view cone
+  rctx.fillStyle="rgba(238,243,251,.10)"; rctx.beginPath(); rctx.moveTo(c,c);
   rctx.arc(c,c,r,-Math.PI/2-rad(S.fov/2),-Math.PI/2+rad(S.fov/2)); rctx.closePath(); rctx.fill();
-  const pts=S.labels.map(L=>L.p); if(!pts.length) return;
-  const maxD=Math.max(500,...pts.map(p=>dist(S.user,p)));
-  for(const p of pts){
-    const d=dist(S.user,p), a=rad(angDiff(bearing(S.user,p),S.heading)), rr=Math.sqrt(d/maxD)*r;
-    rctx.fillStyle=eraColor(p.era); rctx.beginPath(); rctx.arc(c+Math.sin(a)*rr, c-Math.cos(a)*rr, 4, 0, Math.PI*2); rctx.fill();
+  const pts=S.labels.map(L=>L.p);
+  if(pts.length){
+    const maxD=Math.max(500,...pts.map(p=>dist(S.user,p)));
+    for(const p of pts){
+      const d=dist(S.user,p), a=rad(angDiff(bearing(S.user,p),S.heading)), rr=Math.sqrt(d/maxD)*r;
+      const x=c+Math.sin(a)*rr, y=c-Math.cos(a)*rr;
+      rctx.fillStyle=eraColor(p.era); rctx.shadowColor=eraColor(p.era); rctx.shadowBlur=8;
+      rctx.beginPath(); rctx.arc(x,y,4,0,Math.PI*2); rctx.fill(); rctx.shadowBlur=0;
+    }
   }
-  rctx.fillStyle="#ece7da"; rctx.beginPath(); rctx.arc(c,c,4,0,Math.PI*2); rctx.fill();
-  // north marker
-  const na=rad(-S.heading); rctx.fillStyle="#d9a55b"; rctx.font="bold 20px 'JetBrains Mono', monospace"; rctx.textAlign="center"; rctx.textBaseline="middle";
-  rctx.fillText("N", c+Math.sin(na)*(r-10), c-Math.cos(na)*(r-10));
+  rctx.fillStyle="#eef3fb"; rctx.beginPath(); rctx.arc(c,c,3.5,0,Math.PI*2); rctx.fill();
+  const na=rad(-S.heading); rctx.fillStyle="#67e8f9"; rctx.font="600 17px 'JetBrains Mono', monospace"; rctx.textAlign="center"; rctx.textBaseline="middle";
+  rctx.fillText("N", c+Math.sin(na)*(r-11), c-Math.cos(na)*(r-11));
 }
+
+// ---------- Start screen background: flowing strata ----------
+const sbg=$("start-bg"), bctx=sbg.getContext("2d"); let bgRun=false;
+function startBg(){ if(bgRun) return; bgRun=true; requestAnimationFrame(bgFrame); }
+function bgFrame(t){
+  if($("start").hidden){ bgRun=false; return; }
+  const W=sbg.width, H=sbg.height; bctx.clearRect(0,0,W,H);
+  const cols=ERAS.map(e=>e.color);
+  const layers=cols.length, band=H*.075;
+  for(let i=layers-1;i>=0;i--){
+    const base=H*.18 + i*band*1.05;
+    bctx.beginPath(); bctx.moveTo(0,H);
+    for(let x=0;x<=W;x+=6*DPR){
+      const u=x/W;
+      const y=base + Math.sin(u*5.2 + t/2400 + i*.8)*band*.55 + Math.sin(u*11.7 - t/3100 + i*1.7)*band*.22;
+      bctx.lineTo(x,y);
+    }
+    bctx.lineTo(W,H); bctx.closePath();
+    const g=bctx.createLinearGradient(0,base-band,0,base+band*3);
+    g.addColorStop(0,cols[i]+"cc"); g.addColorStop(.25,cols[i]+"33"); g.addColorStop(1,"#05070b00");
+    bctx.fillStyle=g; bctx.fill();
+    bctx.strokeStyle=cols[i]; bctx.globalAlpha=.9; bctx.lineWidth=1.2*DPR; bctx.stroke(); bctx.globalAlpha=1;
+  }
+  requestAnimationFrame(bgFrame);
+}
+startBg();
 
 // ---------- Frame loop ----------
 let lastHeadingText="";
 function frame(t){
   const d=angDiff(S.headingTarget,S.heading);
   S.heading=(S.heading + d*(S.compass?0.15:0.35) + 360)%360;
-  if(S.loc){
-    drawScene(t); drawTape(); drawRadar();
-    const ht=`${Math.round(S.heading)%360}° ${card(S.heading)}`; if(ht!==lastHeadingText){ $("heading-chip").textContent=ht; lastHeadingText=ht; }
+  if(S.loc && $("start").hidden){
+    drawScene(t); drawTape(); drawRadar(t);
+    const ht=`${String(Math.round(S.heading)%360).padStart(3,"0")}° ${card(S.heading)}`; if(ht!==lastHeadingText){ $("mode-label-h").textContent=ht; lastHeadingText=ht; }
     placeLabels();
   }
   requestAnimationFrame(frame);
 }
 function placeLabels(){
   const W=innerWidth, hz=horizonY(), placed=[]; let left=0, right=0;
+  document.documentElement.style.setProperty("--hz", hz+"px");
   const items=S.labels.map(L=>({L, d:dist(S.user,L.p), rel:angDiff(bearing(S.user,L.p),S.heading)})).sort((a,b)=>a.d-b.d);
+  let best=null;
   items.forEach((it,i) => {
     const {L,d,rel}=it;
     if(Math.abs(rel) > S.fov/2+4){ L.el.style.visibility="hidden"; rel<0?left++:right++; return; }
     L.el.style.visibility="visible";
+    if(Math.abs(rel)<7 && (!best || Math.abs(rel)<Math.abs(best.rel))) best=it;
     const x = W/2 + (rel/(S.fov/2))*(W/2);
-    let y = hz + 40 - Math.max(0, Math.log10(Math.max(d,30))-1.5)*55;
-    const s = Math.max(.72, Math.min(1.1, 1.25 - Math.log10(Math.max(d,30))*0.15));
-    const w = (L.w || (L.w=L.el.offsetWidth||150))*s;
-    let guard=0; while(placed.some(q=>Math.abs(q.x-x)<(q.w+w)/2+6 && Math.abs(q.y-y)<52*Math.min(s,q.s)+6) && guard++<12) y-=56*s;
+    let y = hz - 6 - Math.max(0, Math.log10(Math.max(d,30))-1.5)*48;
+    const s = Math.max(.74, Math.min(1.05, 1.22 - Math.log10(Math.max(d,30))*0.14));
+    const w = (L.w || (L.w=L.el.offsetWidth||170))*s;
+    let guard=0; while(placed.some(q=>Math.abs(q.x-x)<(q.w+w)/2+6 && Math.abs(q.y-y)<58*Math.min(s,q.s)+6) && guard++<12) y-=62*s;
     placed.push({x,y,w,s});
-    L.el.style.transform=`translate(${x}px,${y-28}px) translate(-50%,-100%) scale(${s})`;
+    L.el.style.transform=`translate(${x}px,${y-40}px) translate(-50%,-100%) scale(${s})`;
     L.el.style.zIndex=String(1000-i);
     const txt=fmtDist(d); if(L.dEl.textContent!==txt) L.dEl.textContent=txt;
   });
+  // reticle lock-on
+  const lockedNow = best ? best.L : null;
+  if(lockedNow!==S.locked){
+    if(S.locked) S.locked.el.classList.remove("locked");
+    S.locked=lockedNow;
+    const ret=$("reticle"), call=$("lockcall");
+    if(lockedNow){
+      lockedNow.el.classList.add("locked");
+      const c=eraColor(lockedNow.p.era); ret.style.setProperty("--lc",c); call.style.setProperty("--lc",c);
+      ret.classList.add("lock"); call.textContent=`Locked · tap to explore`; call.hidden=false; buzz(6);
+    } else { ret.classList.remove("lock"); call.hidden=true; }
+  }
   const eL=$("edgeL"), eR=$("edgeR");
   eL.hidden=!left; eR.hidden=!right; if(left) eL.textContent=`‹ ${left}`; if(right) eR.textContent=`${right} ›`;
 }
