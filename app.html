@@ -59,7 +59,7 @@ svg.i{width:18px;height:18px;flex:none;stroke:currentColor;fill:none;stroke-widt
 @keyframes warp{0%{opacity:.0;transform:scale(.2)}20%{opacity:.75}100%{opacity:0;transform:scale(2.4)}}
 
 /* Reticle */
-#reticle{position:absolute;left:50%;top:var(--hz,47%);width:120px;height:120px;transform:translate(-50%,-50%);pointer-events:none;transition:top .25s ease}
+#reticle{position:absolute;left:50%;top:var(--mid,47%);width:120px;height:120px;transform:translate(-50%,-50%);pointer-events:none}
 #reticle i{position:absolute;width:18px;height:18px;border-color:rgba(238,243,251,.55);border-style:solid;border-width:0;transition:all .35s cubic-bezier(.2,.8,.2,1)}
 #reticle i:nth-child(1){left:0;top:0;border-left-width:2px;border-top-width:2px;border-top-left-radius:6px}
 #reticle i:nth-child(2){right:0;top:0;border-right-width:2px;border-top-width:2px;border-top-right-radius:6px}
@@ -117,11 +117,11 @@ svg.i{width:18px;height:18px;flex:none;stroke:currentColor;fill:none;stroke-widt
 #labels.has-open .tag:not(.open){opacity:.3}
 #yearbox,#tape{transition:opacity .3s}
 #app.card-open #yearbox,#app.card-open #tape,#app.card-open #lockcall{opacity:0;pointer-events:none}
-.edge{position:absolute;top:var(--hz,47%);transform:translateY(-50%);font-family:var(--f-mono);font-size:11px;display:flex;gap:4px;align-items:center;
+.edge{position:absolute;top:var(--mid,47%);transform:translateY(-50%);font-family:var(--f-mono);font-size:11px;display:flex;gap:4px;align-items:center;
   padding:7px 10px;border-radius:999px;pointer-events:none;background:var(--glass);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);box-shadow:0 0 0 1px var(--hair)}
 #edgeL{left:calc(10px + var(--safe-l))}
 #edgeR{right:calc(10px + var(--safe-r))}
-#lockcall{position:absolute;left:50%;top:calc(var(--hz,47%) + 72px);transform:translateX(-50%);pointer-events:auto;
+#lockcall{position:absolute;left:50%;top:calc(var(--mid,47%) + 72px);transform:translateX(-50%);pointer-events:auto;
   font-family:var(--f-mono);font-size:11px;letter-spacing:.12em;text-transform:uppercase;padding:7px 12px;border-radius:999px;
   background:var(--glass);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);box-shadow:0 0 0 1px var(--lc,var(--cyan));color:var(--lc,var(--cyan));white-space:nowrap}
 
@@ -1483,12 +1483,15 @@ function drawScene(t){
     for(let i=1;i<9;i++){ const y=hz+(H-hz)*Math.pow(i/9,1.8); sctx.beginPath(); sctx.moveTo(0,y); sctx.lineTo(W,y); sctx.stroke(); }
   }
 }
-function horizonY(){
+// Labels sit on the horizon, which follows phone tilt a little (kept between 32% and 60% of the
+// screen and smoothed). The crosshair never moves: locking on only depends on which way you face.
+function horizonTarget(){
   const H=innerHeight;
   let y=H*.47;
-  if(S.cam && S.compass){ const vfov=S.fov*H/innerWidth; y = H/2 + ((S.pitch-90)/vfov)*H; y=Math.max(H*.15, Math.min(H*.8, y)); }
+  if(S.cam && S.compass){ const vfov=S.fov*H/innerWidth; y = H/2 + ((S.pitch-90)/vfov)*H*.6; y=Math.max(H*.32, Math.min(H*.6, y)); }
   return y;
 }
+function horizonY(){ return S.hz ?? horizonTarget(); }
 function drawTape(){
   const W=tape.width, H=tape.height; tctx.clearRect(0,0,W,H);
   tctx.font=`600 ${10*DPR}px "JetBrains Mono", monospace`; tctx.textAlign="center"; tctx.textBaseline="middle";
@@ -1560,6 +1563,7 @@ function frame(t){
   const d=angDiff(S.headingTarget,S.heading);
   S.heading=(S.heading + d*(S.compass?0.15:0.35) + 360)%360;
   if(S.loc && $("start").hidden){
+    const hzT=horizonTarget(); S.hz = S.hz==null ? hzT : S.hz + (hzT-S.hz)*0.12;
     drawScene(t); drawTape(); drawRadar(t);
     const ht=`${String(Math.round(S.heading)%360).padStart(3,"0")}° ${card(S.heading)}`; if(ht!==lastHeadingText){ $("mode-label-h").textContent=ht; lastHeadingText=ht; }
     placeLabels();
@@ -1569,6 +1573,7 @@ function frame(t){
 function placeLabels(){
   const W=innerWidth, hz=horizonY(), placed=[]; let left=0, right=0;
   const hudB=$("hud").getBoundingClientRect().bottom, dockTop=$("dock").getBoundingClientRect().top;
+  const mid=Math.round((hudB+dockTop)/2); if(mid!==S.mid){ S.mid=mid; document.documentElement.style.setProperty("--mid", mid+"px"); }
   document.documentElement.style.setProperty("--hz", hz+"px");
   const items=S.labels.map(L=>({L, d:dist(S.user,L.p), rel:angDiff(bearing(S.user,L.p),S.heading)})).sort((a,b)=>a.d-b.d);
   let best=null;
