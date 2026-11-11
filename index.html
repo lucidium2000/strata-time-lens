@@ -76,7 +76,7 @@ svg.i{width:18px;height:18px;flex:none;stroke:currentColor;fill:none;stroke-widt
 @keyframes breathe{50%{transform:translate(-50%,-50%) scale(.9)}}
 
 /* AR tags */
-#labels{position:absolute;inset:0;pointer-events:none}
+#labels{position:absolute;inset:0;pointer-events:none;z-index:1}
 .tag{position:absolute;left:0;top:0;pointer-events:auto;will-change:transform;transform-origin:50% 100%;text-align:left;cursor:pointer;outline:none;transition:opacity .3s}
 .tag:focus-visible .tag-card{outline:2px solid var(--cyan);outline-offset:3px}
 .tag-card{position:relative;width:max-content;max-width:min(280px,calc(100vw - 32px));padding:10px 14px 10px 10px;border-radius:20px;
@@ -117,7 +117,36 @@ svg.i{width:18px;height:18px;flex:none;stroke:currentColor;fill:none;stroke-widt
 #sheet-img{animation:kenburns 14s ease-in-out infinite alternate}
 .tag-fact{margin:0;font-size:16.5px;font-weight:600;line-height:1.4;color:var(--text)}
 .tag-story{font-size:16px;line-height:1.55;color:#d3dbe8;overflow:auto;max-height:var(--story-max,32vh);overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
-.tag-story:empty{display:none}
+.tag-story .st{margin:0}
+.deep{display:grid;gap:18px;margin-top:16px}
+.deep:empty{display:none}
+.deep-load{display:flex;gap:10px;align-items:center;font-family:var(--f-mono);font-size:12px;color:var(--dim)}
+.deep-sec{display:grid;gap:9px}
+.deep-sec h4{margin:0;font-family:var(--f-mono);font-size:10.5px;letter-spacing:.18em;text-transform:uppercase;color:var(--c)}
+.strip{display:flex;gap:8px;overflow-x:auto;scroll-snap-type:x mandatory;padding-bottom:4px;overscroll-behavior-x:contain}
+.th{flex:none;width:120px;scroll-snap-align:start;position:relative;border-radius:12px;overflow:hidden;background:#111;box-shadow:inset 0 0 0 1px var(--hair)}
+.th img{width:120px;height:90px;object-fit:cover;display:block}
+.th span{position:absolute;left:7px;bottom:5px;font-family:var(--f-mono);font-size:10.5px;color:#fff;text-shadow:0 1px 4px #000}
+.facts{margin:0;display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.facts div{padding:8px 10px;border-radius:12px;background:rgba(238,243,251,.05);box-shadow:inset 0 0 0 1px var(--hair);min-width:0}
+.facts dt{font-family:var(--f-mono);font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--dim)}
+.facts dd{margin:2px 0 0;font-size:14px;font-weight:600;line-height:1.35;color:var(--text);overflow-wrap:anywhere}
+.tl{list-style:none;margin:0 0 0 5px;padding:0 0 0 16px;border-left:2px solid var(--hair);display:grid;gap:12px}
+.tl li{position:relative;display:grid;gap:2px;font-size:14.5px;line-height:1.45;color:#d3dbe8}
+.tl li::before{content:"";position:absolute;left:-23px;top:5px;width:10px;height:10px;border-radius:50%;background:var(--dc,var(--c));box-shadow:0 0 8px var(--dc,var(--c))}
+.tl b{font-family:var(--f-display);font-weight:600;font-size:15px;color:var(--dc,var(--c))}
+.hist{font-size:15px;line-height:1.6;color:#d3dbe8;display:grid;gap:10px}
+.hist p{margin:0}
+.hist h5{margin:6px 0 0;font-size:13.5px;color:var(--text)}
+.hist.clamp{max-height:12em;overflow:hidden;-webkit-mask:linear-gradient(#000 55%,transparent);mask:linear-gradient(#000 55%,transparent)}
+.deep .fine a{color:var(--cyan)}
+#lightbox{position:absolute;inset:0;z-index:60;background:rgba(2,4,8,.95);display:grid;grid-template-rows:auto 1fr auto;gap:10px;
+  padding:calc(12px + var(--safe-t)) max(12px,calc(12px + var(--safe-r))) calc(14px + var(--safe-b)) max(12px,calc(12px + var(--safe-l)))}
+#lightbox .lb-top{display:flex;justify-content:space-between;align-items:center;font-family:var(--f-mono);font-size:12px;color:var(--dim)}
+#lb-img{width:100%;height:100%;min-height:0;object-fit:contain}
+#lightbox .lb-cap{display:grid;gap:6px;max-width:65ch;margin:0 auto;width:100%}
+#lb-title{font-size:14.5px;line-height:1.45;color:var(--text)}
+#lb-date{font-family:var(--f-mono);font-size:12px;color:var(--cyan)}
 .tag-actions{display:flex;gap:8px;flex-wrap:wrap}
 #labels.has-open .tag:not(.open){opacity:.3}
 #yearbox,#tape{transition:opacity .3s}
@@ -510,6 +539,13 @@ svg.i{width:18px;height:18px;flex:none;stroke:currentColor;fill:none;stroke-widt
     </div>
   </div>
 
+  <div id="lightbox" hidden role="dialog" aria-modal="true" aria-label="Historic photo">
+    <div class="lb-top"><span id="lb-count"></span><button class="btn sm" id="lb-close">Close</button></div>
+    <img id="lb-img" alt="">
+    <div class="lb-cap"><div id="lb-date"></div><div id="lb-title"></div>
+      <div class="row"><button class="btn sm" id="lb-prev">‹ Previous</button><button class="btn sm" id="lb-next">Next ›</button><span class="spacer"></span><a class="btn sm" id="lb-link" target="_blank" rel="noopener">Library of Congress ↗</a></div></div>
+  </div>
+
   <div id="toast" class="glass holo" hidden></div>
   <div id="busy" hidden><div class="glass holo"><span class="spin"></span><span id="busy-text">Loading…</span><button class="btn sm" id="busy-cancel" hidden>Cancel</button></div></div>
 </div>
@@ -554,7 +590,7 @@ const eraColor = id => (ERA[id] || ERA.now).color;
 // ---------- Demo places (hand-written) ----------
 const DEMOS = [
 {
-  key:"kc", name:"Country Club Plaza", sub:"Kansas City, Missouri", blurb:"A 1923 shopping center, the ancestor of the strip mall",
+  key:"kc", name:"Country Club Plaza", sub:"Kansas City, Missouri", city:"Kansas City", blurb:"A 1923 shopping center, the ancestor of the strip mall",
   lat:39.0418, lon:-94.5918, deepYa:3.0e8,
   here:{ title:"Country Club Plaza", text:"You're standing in one of the first shopping districts in the U.S. designed around the car. Developer J.C. Nichols opened it in 1923 on low ground along Brush Creek and styled it after Seville, Spain. Every strip mall you've parked at descends from places like this." },
   eras:{
@@ -583,7 +619,7 @@ const DEMOS = [
   ]
 },
 {
-  key:"phl", name:"Independence Hall", sub:"Old City, Philadelphia", blurb:"Where the Declaration and Constitution were signed",
+  key:"phl", name:"Independence Hall", sub:"Old City, Philadelphia", city:"Philadelphia", blurb:"Where the Declaration and Constitution were signed",
   lat:39.9487, lon:-75.1485, deepYa:4.8e8,
   here:{ title:"Independence National Historical Park", text:"You're in Old City, where the Declaration of Independence (1776) and the U.S. Constitution (1787) were debated and signed. The brick buildings around you were the working rooms of a colonial capital." },
   eras:{
@@ -831,7 +867,7 @@ async function loadLive(fix){
   const loc = { key:`live:${lat.toFixed(2)},${lon.toFixed(2)}`, name:"Here", sub:"", lat, lon, live:true, source:"live", here:{title:"Here",text:""}, eras:{}, ground:{}, pois:[] };
   const firstLoad = !S.loc || !S.loc.live;
   if(firstLoad) busy("Loading the history around you…");
-  const wiki=[];
+  const wiki=[]; let wd=[];
   try{
     // Phase 1: fast sources. The lens opens as soon as these answer (or time out).
     await Promise.all([
@@ -840,7 +876,7 @@ async function loadLive(fix){
         const kind=(d.type||d.category||"place").replace(/_/g," ");
         const town=a.city||a.town||a.village||a.suburb||a.county||"";
         loc.name = d.name || a.shop || a.amenity || a.road || town || "Here";
-        loc.sub = [town, a.state||a.country].filter(Boolean).join(", ");
+        loc.sub = [town, a.state||a.country].filter(Boolean).join(", "); loc.city = a.city||a.town||a.village||"";
         const built = d.extratags && (d.extratags.start_date || d.extratags["building:start_date"]);
         loc.here = { title: loc.name, text: `OpenStreetMap lists this spot as a ${kind}${a.road?` on ${a.road}`:""}${town?` in ${town}`:""}.${built?` Records give a start date of ${built}.`:""}` };
         if(town){
@@ -862,6 +898,8 @@ async function loadLive(fix){
           for(const g of b){ const pg=pages[g.pageid]; if(pg) wiki.push(poiFromWiki(pg, g.lat, g.lon)); }
         }).catch(()=>{ for(const g of b) wiki.push({ name:g.title, lat:g.lat, lon:g.lon, year:"", fact:"", story:"", link:`https://en.wikipedia.org/?curid=${g.pageid}`, src:"wikipedia" }); })));
       }).catch(()=>{}),
+      // Wikidata: historic places with exact dates and landmark status (National Register etc.)
+      wikidataNearby(lat, lon, 1.5).then(r => { wd=r; }).catch(()=>{}),
       getJSON(`https://macrostrat.org/api/v2/geologic_units/map?lat=${lat}&lng=${lon}`, 7000).then(d => {
         const u=d.success&&d.success.data&&d.success.data[0]; if(!u) return;
         const ages = u.b_int_name===u.t_int_name ? u.b_int_name : `${u.b_int_name} to ${u.t_int_name}`;
@@ -872,7 +910,7 @@ async function loadLive(fix){
       }).catch(()=>{}),
     ]);
     if(seq!==loadSeq) return;
-    loc.pois = wiki.map(p => ({...p, era: eraOf(p.year)})).sort((a,b)=>dist(fix,a)-dist(fix,b)).slice(0,70);
+    loc.pois = mergePois([wiki, wd], fix);
     fillEraTexts(loc);
     if(firstLoad) S.autoRange=true;
     if(S.autoRange) S.range = pickRange(loc.pois, fix);
@@ -887,37 +925,19 @@ async function loadLive(fix){
   }
   if(seq!==loadSeq) return;
 
-  // Phase 2 (in the background): OpenStreetMap markers, plaques, dated buildings, art
+  // Phase 2 (in the background): OpenStreetMap markers and plaques, plus Wikipedia text for
+  // Wikidata/OSM places that link to an article
   try{
-    const d = await overpass(osmQuery(lat, lon, OSM_R));
-    const osm=[], wikiWanted=new Set();
-    for(const el of d.elements||[]){ const p=poiFromOsm(el); if(!p) continue; osm.push(p); if(p.wikiTitle) wikiWanted.add(p.wikiTitle); }
-    const already=new Set(wiki.map(w=>w.name));
-    const titles=[...wikiWanted].filter(t=>!already.has(t)).slice(0,40);
-    for(let i=0;i<titles.length;i+=20){
-      try{
-        const r=await getJSON(`https://en.wikipedia.org/w/api.php?action=query&titles=${encodeURIComponent(titles.slice(i,i+20).join("|"))}&redirects=1&prop=extracts|pageimages&exintro=1&explaintext=1&exsentences=5&exlimit=20&piprop=thumbnail&pithumbsize=480&format=json&origin=*`, 7000);
-        const redir=Object.fromEntries(((r.query&&r.query.redirects)||[]).map(x=>[x.to,x.from]));
-        for(const p of Object.values((r.query&&r.query.pages)||{})){
-          if(!p.extract) continue;
-          const o=osm.find(x=>x.wikiTitle===p.title || x.wikiTitle===redir[p.title]); if(!o) continue;
-          const w=poiFromWiki(p, o.lat, o.lon);
-          Object.assign(o, { fact:w.fact, story:[w.story, o.story].filter(Boolean).join(" "), img:w.img, link:w.link, year:o.year||w.year, src:"osm+wiki" });
-        }
-      }catch{}
-    }
+    let osm=[];
+    const od = await overpass(osmQuery(lat, lon, OSM_R)).catch(()=>null);
+    if(od) for(const el of od.elements||[]){ const p=poiFromOsm(el); if(p) osm.push(p); }
     if(seq!==loadSeq || S.loc!==loc) return;
-    // Merge: an OSM feature and a Wikipedia article about the same thing become one tag
-    const norm=x=>String(x).toLowerCase().replace(/[^a-z0-9]/g,"");
-    const merged=[...osm];
-    for(const w of wiki){
-      const twin=merged.find(o => (o.wikiTitle===w.name || norm(o.name)===norm(w.name)) && dist(o,w)<300);
-      if(twin){ if(!twin.img) Object.assign(twin,{fact:w.fact, story:[w.story,twin.story].filter(Boolean).join(" "), img:w.img, link:w.link, year:twin.year||w.year}); }
-      else merged.push(w);
-    }
+    const merged = mergePois([wiki, wd, osm], fix);
+    await enrichFromWikipedia(merged);
+    if(seq!==loadSeq || S.loc!==loc) return;
     const before=loc.pois.length;
     const openName=S.expanded?.name;
-    loc.pois = merged.map(p => ({...p, era: p.era || eraOf(p.year)})).sort((a,b)=>dist(fix,a)-dist(fix,b)).slice(0,70);
+    loc.pois = merged;
     loc.eras={...loc.eras}; ["c20","c19","colonial"].forEach(k=>{ if(loc.eras[k]?.auto) delete loc.eras[k]; });
     fillEraTexts(loc);
     if(S.expanded) S.expanded = loc.pois.find(p=>p.name===openName) || null;
@@ -925,10 +945,76 @@ async function loadLive(fix){
     if(S.autoRange) S.range=pickRange(loc.pois, fix);
     buildLabels(); updateDisc(); updateRangeChip();
     const added=loc.pois.length-before;
-    if(added>0) toast(`+${added} markers and landmarks from OpenStreetMap`, 3000, I.spark);
-  }catch{
-    if(seq===loadSeq && S.loc===loc && !loc.pois.length) toast("OpenStreetMap is busy right now. Showing Wikipedia places only.", 4000);
+    if(added>0) toast(`+${added} markers and landmarks added`, 3000, I.spark);
+    else if(!od && !loc.pois.length) toast("OpenStreetMap is busy right now.", 4000);
+  }catch(e){ console.error(e); }
+}
+
+// ---------- Merging places from several sources ----------
+const normName=x=>String(x||"").toLowerCase().replace(/\(.*?\)/g,"").replace(/^the /,"").replace(/[^a-z0-9]/g,"");
+function mergePois(lists, at){
+  const out=[];
+  for(const list of lists) for(const p of list||[]){
+    const twin=out.find(o => dist(o,p)<400 && ((o.qid&&p.qid&&o.qid===p.qid) || (o.wikiTitle&&p.wikiTitle&&o.wikiTitle===p.wikiTitle) || normName(o.name)===normName(p.name)));
+    if(!twin){ out.push({...p}); continue; }
+    for(const k of ["qid","wikiTitle","img","imgCredit","heritage","desc"]) if(!twin[k] && p[k]) twin[k]=p[k];
+    if(p.inception){ twin.year=p.inception; twin.inception=p.inception; }        // Wikidata dates beat years guessed from text
+    else if(!twin.year && p.year) twin.year=p.year;
+    if(!twin.fact && p.fact) twin.fact=p.fact;
+    if(!twin.story && p.story) twin.story=p.story;
+    else if(p.src==="osm" && /marker reads/.test(p.story||"") && !/marker reads/.test(twin.story||"")) twin.story=`${twin.story} ${p.story.split(" Built or")[0]}`;
+    if(p.heritage && !String(twin.fact).includes(p.heritage)) twin.fact = `${twin.fact||""} ${p.heritage}.`.trim();
   }
+  return out.map(p=>({...p, era:eraOf(p.year)})).sort((a,b)=>dist(at,a)-dist(at,b)).slice(0,80);
+}
+async function enrichFromWikipedia(items){
+  const need=items.filter(p=>p.wikiTitle && (!p.story || p.src==="wikidata" || p.src==="osm")).slice(0,40);
+  for(let i=0;i<need.length;i+=20){
+    const batch=need.slice(i,i+20);
+    try{
+      const r=await getJSON(`https://en.wikipedia.org/w/api.php?action=query&titles=${encodeURIComponent(batch.map(b=>b.wikiTitle).join("|"))}&redirects=1&prop=extracts|pageimages&exintro=1&explaintext=1&exsentences=5&exlimit=20&piprop=thumbnail&pithumbsize=480&format=json&origin=*`, 7000);
+      const redir=Object.fromEntries(((r.query&&r.query.redirects)||[]).map(x=>[x.to,x.from]));
+      for(const pg of Object.values((r.query&&r.query.pages)||{})){
+        if(!pg.extract) continue;
+        const o=batch.find(x=>x.wikiTitle===pg.title || x.wikiTitle===redir[pg.title]); if(!o) continue;
+        const w=poiFromWiki(pg, o.lat, o.lon);
+        o.story=[w.fact, w.story, o.src==="osm"?o.story:""].filter(Boolean).join(" ");
+        if(!o.img && w.img){ o.img=w.img; o.imgCredit="Wikipedia"; }
+        if(!o.year && w.year){ o.year=w.year; o.era=eraOf(w.year); }
+        o.link=w.link;
+      }
+    }catch{}
+  }
+}
+async function wikidataNearby(lat, lon, km){
+  const q=`SELECT ?item ?itemLabel ?itemDescription ?coord ?inception ?heritageLabel ?image ?article WHERE {
+  SERVICE wikibase:around { ?item wdt:P625 ?coord . bd:serviceParam wikibase:center "Point(${lon} ${lat})"^^geo:wktLiteral . bd:serviceParam wikibase:radius "${km}" . }
+  { ?item wdt:P1435 [] } UNION { ?item wdt:P571 [] } UNION { ?item wdt:P793 [] } UNION { ?item wdt:P649 [] }
+  FILTER NOT EXISTS { ?item wdt:P31 ?t . VALUES ?t { wd:Q5 wd:Q515 wd:Q1093829 wd:Q486972 wd:Q123705 wd:Q47168 wd:Q3957 wd:Q532 wd:Q15284 wd:Q1549591 wd:Q7930989 wd:Q62049 wd:Q498162 wd:Q17343829 } }
+  OPTIONAL { ?item wdt:P571 ?inception }
+  OPTIONAL { ?item wdt:P1435 ?heritage }
+  OPTIONAL { ?item wdt:P18 ?image }
+  OPTIONAL { ?article schema:about ?item ; schema:isPartOf <https://en.wikipedia.org/> }
+  SERVICE wikibase:label { bd:serviceParam wikibase:language "en". }
+} LIMIT 400`;
+  const d=await getJSON("https://query.wikidata.org/sparql?format=json&query="+encodeURIComponent(q), 9000);
+  const by={};
+  for(const b of (d.results&&d.results.bindings)||[]){
+    const v=k=>b[k]&&b[k].value, qid=v("item").split("/").pop();
+    let o=by[qid];
+    if(!o){
+      const m=/Point\(([-\d.eE]+) ([-\d.eE]+)\)/.exec(v("coord")||""), label=v("itemLabel");
+      if(!m || !label || /^Q\d+$/.test(label)) continue;
+      if(/^(neighbo|city|town|village|county|census|unincorporated|human settlement)/i.test(v("itemDescription")||"")) continue;
+      o=by[qid]={ name:label, qid, lat:+m[2], lon:+m[1], desc:v("itemDescription")||"", src:"wikidata", her:[], link:`https://www.wikidata.org/wiki/${qid}` };
+    }
+    const inc=v("inception"); if(inc && !o.inception){ const y=/^(-?\d{1,4})-/.exec(inc); if(y && +y[1]<=NOW_YEAR) o.inception=String(+y[1]); }
+    const h=v("heritageLabel"); if(h && !/^Q\d+$/.test(h) && !o.her.includes(h)) o.her.push(h);
+    const im=v("image"); if(im && !o.img){ o.img=im.replace(/^http:/,"https:")+"?width=900"; o.imgCredit="Wikimedia Commons"; }
+    const a=v("article"); if(a && !o.wikiTitle) o.wikiTitle=decodeURIComponent(a.split("/wiki/")[1]||"").replace(/_/g," ");
+  }
+  return Object.values(by).map(o=>{ const heritage=o.her.join(", "); delete o.her;
+    return {...o, year:o.inception||"", heritage, fact:[cap(o.desc), heritage].filter(Boolean).join(". ").replace(/\.?$/,"."), story:""}; });
 }
 
 function fillEraTexts(loc){
@@ -1005,7 +1091,7 @@ function poiFromWiki(p, lat, lon){
   const years=[...text.matchAll(/\b(1[0-9]{3}|20[0-2][0-9])\b/g)].map(m=>+m[1]);
   const y=years.length?String(Math.min(...years)):"";
   const sentences=text.split(/(?<=\.)\s/);
-  return { name:p.title, lat, lon, year:y, fact:sentences[0]||"", story:sentences.slice(1).join(" "), img:p.thumbnail&&p.thumbnail.source, link:`https://en.wikipedia.org/?curid=${p.pageid}`, src:"wikipedia" };
+  return { name:p.title, wikiTitle:p.title, lat, lon, year:y, fact:sentences[0]||"", story:sentences.slice(1).join(" "), img:p.thumbnail&&p.thumbnail.source, link:`https://en.wikipedia.org/?curid=${p.pageid}`, src:"wikipedia" };
 }
 function poiFromOsm(el){
   const t=el.tags||{}, la=el.lat??el.center?.lat, lo=el.lon??el.center?.lon;
@@ -1028,7 +1114,7 @@ function poiFromOsm(el){
   if(t.denomination) bits.push(`${cap(human(t.denomination))} congregation.`);
   const fact = `${kind}${year?`, from ${year}`:""}${t["addr:street"]?` on ${t["addr:street"]}`:""}.`;
   const wt = t.wikipedia && /^en:/.test(t.wikipedia) ? t.wikipedia.slice(3) : "";
-  return { name, kind, lat:la, lon:lo, year, fact, story:bits.join(" "), link:`https://www.openstreetmap.org/${el.type}/${el.id}`, wikiTitle:wt, src:"osm" };
+  return { name, kind, lat:la, lon:lo, year, fact, story:bits.join(" "), link:`https://www.openstreetmap.org/${el.type}/${el.id}`, wikiTitle:wt, qid:/^Q\d+$/.test(t.wikidata||"")?t.wikidata:"", src:"osm" };
 }
 
 function stopCamera(){
@@ -1203,7 +1289,7 @@ function buildLabels(){
         <span class="tag-side"><span class="eq" aria-hidden="true"><i></i><i></i><i></i><i></i></span><button class="tag-x" data-act="close" aria-label="Close card"><svg class="i" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button></span></div>
       <div class="tag-body">
         ${p.fact?`<p class="tag-fact">${esc(p.fact)}</p>`:""}
-        <div class="tag-story">${esc(p.story||"")}</div>
+        <div class="tag-story">${p.story?`<p class="st">${esc(p.story)}</p>`:""}<div class="deep"></div></div>
         <div class="tag-actions"><button class="btn sm primary" data-act="narr"></button><button class="btn sm" data-act="more">Photos, links & questions</button></div>
       </div></div><span class="tag-stem"></span><span class="tag-ring"></span>`;
     el.setAttribute("aria-label", `${p.name}, ${ERA[p.era].label}${p.year?", "+p.year:""}`);
@@ -1213,6 +1299,8 @@ function buildLabels(){
       if(act==="close") return collapse();
       if(act==="narr"){ if(speaking && narrPoi===p) return stopSpeech(); return narratePoi(p,"card"); }
       if(act==="more") return openPoi(p,{keepAudio:true});
+      if(act==="photo"){ p.deep && p.deep.then(d=>openLightbox(d.photos, +ev.target.closest("[data-i]").dataset.i)); return; }
+      if(act==="histmore"){ const hst=el.querySelector(".hist"); const open=hst.classList.toggle("clamp"); ev.target.closest("button").textContent=open?"Read the full story":"Show less"; return; }
       if(S.expanded===p){ if(!ev.target.closest(".tag-body")) collapse(); return; }
       expand(p, true);
     });
@@ -1220,7 +1308,7 @@ function buildLabels(){
     box.append(el);
     const L={p, el, card:el.querySelector(".tag-card"), story:el.querySelector(".tag-story"), photo:el.querySelector(".tag-photo"), dEl:el.querySelector(".d"), w:0};
     if(p.img) setBadgePhoto(L);
-    if(p===S.expanded) showPhoto(L);
+    if(p===S.expanded){ showPhoto(L); loadDeep(L); }
     return L;
   });
   syncOpen(); setNarrBtns();
@@ -1254,7 +1342,8 @@ function setBadgePhoto(L){
 }
 function showPhoto(L){
   const box=L.photo; if(!box) return;
-  ensureImage(L.p).then(url => {
+  ensureImage(L.p).then(async url => {
+    if(!url){ const d=await deepDive(L.p).catch(()=>null); if(d && d.photos[0]){ url=d.photos[0].full; L.p.imgCredit="Library of Congress"; } }
     if(!url || box.classList.contains("loaded")) return;
     const img=box.querySelector("img");
     img.onload=()=>{ box.classList.add("loaded"); setBadgePhoto(L); };
@@ -1265,11 +1354,159 @@ function showPhoto(L){
   });
 }
 
+// ---------- Go deeper: facts, timeline, historic photos and the full history for one place ----------
+const inUS = p => p.lat>18 && p.lat<72 && p.lon>-170 && p.lon<-60;
+const attr = s => esc(s).replace(/`/g,"&#96;");
+function deepDive(p){
+  if(p.deep) return p.deep;
+  p.deep=(async()=>{
+    const out={facts:[], events:[], timeline:[], photos:[], history:"", sources:new Set()};
+    let title=p.wiki||p.wikiTitle||"", qid=p.qid||"";
+    if(title){
+      try{
+        const d=await getJSON(`https://en.wikipedia.org/w/api.php?action=query&titles=${encodeURIComponent(title)}&redirects=1&prop=pageprops&ppprop=wikibase_item&format=json&origin=*`, 6000);
+        const pg=Object.values((d.query&&d.query.pages)||{})[0];
+        if(pg && !("missing" in pg)){ title=pg.title; qid=qid||(pg.pageprops&&pg.pageprops.wikibase_item)||""; } else title="";
+      }catch{}
+    }
+    await Promise.all([
+      title ? getJSON(`https://en.wikipedia.org/w/api.php?action=query&titles=${encodeURIComponent(title)}&redirects=1&prop=extracts&explaintext=1&exsectionformat=wiki&format=json&origin=*`, 9000).then(d=>{
+        const pg=Object.values((d.query&&d.query.pages)||{})[0]; const txt=(pg&&pg.extract)||"";
+        if(txt){ out.history=historySection(txt); out.fullText=txt; out.sources.add("Wikipedia"); out.wikiUrl=`https://en.wikipedia.org/wiki/${encodeURIComponent(title.replace(/ /g,"_"))}`; }
+      }).catch(()=>{}) : null,
+      qid ? wikidataFacts(qid).then(f=>{ out.facts=f.facts; out.events=f.events; if(f.facts.length||f.events.length) out.sources.add("Wikidata"); }).catch(()=>{}) : null,
+      inUS(p) ? locPhotos(p, title).then(ph=>{ out.photos=ph; if(ph.length) out.sources.add("Library of Congress"); }).catch(()=>{}) : null,
+    ]);
+    out.timeline=buildTimeline(out.events, out.history||out.fullText||"", p);
+    return out;
+  })();
+  return p.deep;
+}
+const FACT_PROPS=[["P571","Built or founded","time"],["P1619","Opened","time"],["P576","Closed or demolished","time"],["P84","Architect","item"],["P149","Style","item"],
+  ["P1435","Heritage status","item"],["P138","Named after","item"],["P547","Commemorates","item"],["P88","Commissioned by","item"],["P2048","Height","qty"],["P1101","Floors","qty"]];
+const wdYear = t => { const m=/^([+-])0*(\d+)-/.exec(t||""); return m ? (m[1]==="-" ? `${m[2]} BCE` : m[2]) : ""; };
+async function wikidataFacts(qid){
+  const d=await getJSON(`https://www.wikidata.org/w/api.php?action=wbgetentities&ids=${qid}&props=claims&format=json&origin=*`, 7000);
+  const claims=(d.entities&&d.entities[qid]&&d.entities[qid].claims)||{};
+  const raw=[], ids=new Set(), events=[];
+  for(const [pid,label,kind] of FACT_PROPS){
+    for(const c of (claims[pid]||[]).slice(0,3)){
+      const dv=c.mainsnak&&c.mainsnak.datavalue; if(!dv) continue;
+      if(kind==="time") raw.push({k:label, v:wdYear(dv.value.time), y:wdYear(dv.value.time)});
+      else if(kind==="qty") raw.push({k:label, v:`${(+dv.value.amount).toLocaleString()}${pid==="P2048"?" m":""}`});
+      else { ids.add(dv.value.id); const since=c.qualifiers&&c.qualifiers.P580&&c.qualifiers.P580[0].datavalue; raw.push({k:label, id:dv.value.id, since:since?wdYear(since.value.time):""}); }
+    }
+  }
+  for(const c of (claims.P793||[]).slice(0,12)){
+    const dv=c.mainsnak&&c.mainsnak.datavalue; if(!dv) continue; ids.add(dv.value.id);
+    const q=c.qualifiers||{}, t=(q.P585||q.P580||[])[0]; events.push({id:dv.value.id, y:t&&t.datavalue?wdYear(t.datavalue.value.time):""});
+  }
+  let labels={};
+  if(ids.size){
+    const l=await getJSON(`https://www.wikidata.org/w/api.php?action=wbgetentities&ids=${[...ids].slice(0,50).join("|")}&props=labels&languages=en&format=json&origin=*`, 7000).catch(()=>({}));
+    for(const [id,e] of Object.entries(l.entities||{})) labels[id]=e.labels&&e.labels.en&&e.labels.en.value;
+  }
+  const facts=[];
+  for(const f of raw){
+    const v = f.id ? labels[f.id] : f.v; if(!v) continue;
+    const prev=facts.find(x=>x.k===f.k);
+    const text = f.since ? `${v} (since ${f.since})` : v;
+    if(prev){ if(!prev.v.includes(v)) prev.v+=`, ${text}`; } else facts.push({k:f.k, v:text, y:f.y||f.since||""});
+    if(f.k==="Heritage status" && f.since) events.push({label:`Listed as ${v}`, y:f.since});
+  }
+  for(const e of events) if(e.id) e.label=labels[e.id] ? cap(labels[e.id]) : "";
+  const EV={"Built or founded":"Construction or founding","Opened":"Opens","Closed or demolished":"Closed or demolished"};
+  for(const f of facts) if(EV[f.k]) events.push({label:EV[f.k], y:f.y});
+  return { facts, events: events.filter(e=>e.label && /\d/.test(e.y||"")) };
+}
+function historySection(txt){
+  const lines=txt.split("\n"); let out=[], on=false, depth=0;
+  for(const ln of lines){
+    const h=/^(=+)\s*(.*?)\s*=+\s*$/.exec(ln);
+    if(h){
+      const d=h[1].length, name=h[2];
+      if(on && d<=depth) break;
+      if(!on && d===2 && /^(history|historical background|background|early history|origins|construction)/i.test(name)){ on=true; depth=d; continue; }
+      if(on){ out.push(`##${name}`); continue; }
+    } else if(on && ln.trim()) out.push(ln.trim());
+  }
+  if(out.length) return out.join("\n");
+  // no History heading: use the body after the intro, minus reference sections
+  const body=txt.split(/\n==\s*(See also|References|Notes|External links|Further reading|Bibliography|Gallery)\s*==/i)[0];
+  const parts=body.split(/\n(?===)/); return parts.slice(1).join("\n").replace(/^=+\s*(.*?)\s*=+$/gm,"##$1").split("\n").filter(Boolean).join("\n").slice(0,6000);
+}
+function buildTimeline(events, text, p){
+  const items=[];
+  for(const e of events||[]) items.push({y:e.y, n:parseInt(e.y,10)*(/BCE/.test(e.y)?-1:1), t:e.label, src:"wd"});
+  // split on sentence ends, but not after initials or abbreviations like "Harry S." or "U.S."
+  const sents=text.replace(/^##.*$/gm,"").replace(/\s+/g," ").split(/(?<=[a-z0-9)\]"”'][.!?])\s+(?=[A-Z"“])/);
+  for(const s0 of sents){
+    const m=/\b(1[0-9]{3}|20[0-2][0-9])\b/.exec(s0); if(!m || +m[1]>NOW_YEAR) continue;
+    const s=s0.trim(); if(s.length<30) continue;
+    items.push({y:m[1], n:+m[1], t: s.length>200 ? s.slice(0,197).replace(/\s+\S*$/,"")+"…" : s, src:"wp"});
+  }
+  const seen=new Map();
+  for(const it of items.sort((a,b)=>a.n-b.n)){ if(isNaN(it.n)) continue; const prev=seen.get(it.n); if(!prev || (prev.src==="wd" && it.src==="wp" && prev.t.length<40)) seen.set(it.n, it); }
+  let list=[...seen.values()];
+  if(list.length>10){ const step=(list.length-1)/9; list=Array.from({length:10},(_,i)=>list[Math.round(i*step)]); }
+  return list;
+}
+async function locPhotos(p, title){
+  const city=((S.loc&&(S.loc.city||S.loc.sub))||"").split(",")[0].trim();
+  const base=(title||p.wiki||p.wikiTitle||p.name).replace(/\(.*?\)/g,"").replace(/,.*$/,"").trim();
+  const STOP=new Set(["the","and","of","house","hall","church","park","street","building","museum","center","centre","site","historic","district","national","memorial","city"]);
+  const words=base.toLowerCase().split(/[^a-z0-9']+/).filter(w=>w.length>=3 && !STOP.has(w));
+  if(!words.length) return [];
+  const need=Math.min(2, words.length);
+  const q=encodeURIComponent(`${base} ${city}`.trim());
+  const sets=await Promise.all(["hh","det"].map(co=>getJSON(`https://www.loc.gov/pictures/search/?q=${q}&co=${co}&fo=json&c=24`, 14000).then(d=>d.results||[]).catch(()=>[])));
+  const out=[], seenImg=new Set();
+  for(const r of [...sets[1], ...sets[0]]){            // Detroit Publishing (c. 1900) first, then the building survey
+    const img=r.image||{}; if(!img.thumb || /notdigitized|service\/pnp\/pp/.test(img.thumb)) continue;
+    const t=String(r.title||"").toLowerCase();
+    if(words.filter(w=>t.includes(w)).length<need) continue;
+    if(seenImg.has(img.full||img.thumb)) continue; seenImg.add(img.full||img.thumb);
+    out.push({ thumb:img.thumb.replace(/_150px\.jpg$/,"_150px.jpg"), full:img.full||img.thumb, title:String(r.title||"").replace(/^\d+\.\s*/,""), date:r.created_published_date||"", link:(r.links&&r.links.item)||"" });
+    if(out.length>=10) break;
+  }
+  return out;
+}
+const yearOf = s => { const m=/(?<!\d)(1[0-9]{3}|20[0-2][0-9])(?!\d)/.exec(s||""); return m?m[1]:""; };
+function renderDeep(L, d){
+  const box=L.el.querySelector(".deep"); if(!box) return;
+  let h="";
+  if(d.photos.length) h+=`<section class="deep-sec"><h4>Then · historic photos</h4><div class="strip">${d.photos.map((ph,i)=>`<button class="th" data-act="photo" data-i="${i}" aria-label="${attr(ph.title)}"><img src="${attr(ph.thumb)}" alt="" loading="lazy"><span>${esc(yearOf(ph.date)||"")}</span></button>`).join("")}</div></section>`;
+  if(d.facts.length) h+=`<section class="deep-sec"><h4>Key facts</h4><dl class="facts">${d.facts.slice(0,8).map(f=>`<div><dt>${esc(f.k)}</dt><dd>${esc(f.v)}</dd></div>`).join("")}</dl></section>`;
+  if(d.timeline.length) h+=`<section class="deep-sec"><h4>Timeline</h4><ol class="tl">${d.timeline.map(t=>`<li style="--dc:${eraColor(eraOf(t.n))}"><b>${esc(t.y)}</b><span>${esc(t.t)}</span></li>`).join("")}</ol></section>`;
+  if(d.history){
+    const html=d.history.split("\n").map(x=>x.startsWith("##")?`<h5>${esc(x.slice(2))}</h5>`:`<p>${esc(x)}</p>`).join("");
+    h+=`<section class="deep-sec"><h4>The full story</h4><div class="hist clamp">${html}</div><button class="btn sm" data-act="histmore">Read the full story</button></section>`;
+  }
+  h += h ? `<p class="fine">Sources: ${[...d.sources].join(", ")}${d.wikiUrl?` · <a href="${attr(d.wikiUrl)}" target="_blank" rel="noopener">Wikipedia article</a>`:""}</p>`
+         : `<p class="fine">No deeper records found for this place yet.</p>`;
+  box.innerHTML=h; box.dataset.state="done";
+}
+function loadDeep(L){
+  const box=L.el.querySelector(".deep"); if(!box || box.dataset.state) return;
+  box.dataset.state="loading";
+  box.innerHTML=`<div class="deep-load"><span class="spin"></span>Digging into the archives…</div>`;
+  deepDive(L.p).then(d=>{ const cur=S.labels.find(l=>l.p===L.p); if(cur) renderDeep(cur, d); });
+}
+// Photo viewer for Library of Congress images
+let lb={list:[], i:0};
+function openLightbox(list, i){ lb={list, i}; showLb(); $("lightbox").hidden=false; $("lb-close").focus(); }
+function showLb(){ const ph=lb.list[lb.i]; if(!ph) return; $("lb-img").src=ph.full; $("lb-title").textContent=ph.title; $("lb-date").textContent=ph.date||"";
+  const a=$("lb-link"); a.href=ph.link||"#"; a.hidden=!ph.link; $("lb-count").textContent=`${lb.i+1} / ${lb.list.length}`; }
+$("lb-close").onclick=()=>{ $("lightbox").hidden=true; };
+$("lb-prev").onclick=()=>{ lb.i=(lb.i-1+lb.list.length)%lb.list.length; showLb(); };
+$("lb-next").onclick=()=>{ lb.i=(lb.i+1)%lb.list.length; showLb(); };
+document.addEventListener("keydown", e=>{ if($("lightbox").hidden) return; if(e.key==="Escape") $("lightbox").hidden=true; if(e.key==="ArrowRight") $("lb-next").click(); if(e.key==="ArrowLeft") $("lb-prev").click(); });
+
 // Open a place's card right where the place is in the view
 function expand(p, fromTap){
   S.expanded=p; syncOpen();
   const L=S.labels.find(l=>l.p===p);
-  if(L) showPhoto(L);
+  if(L){ showPhoto(L); loadDeep(L); }
   if(L && addDisc(p.name)){ L.el.querySelector(".okslot").innerHTML=`<span class="ok">${I.check}</span>`; buzz([10,40,10]); }
   if(fromTap && S.autoNarr && !(speaking && narrPoi===p)) narratePoi(p,"tap");
 }
@@ -1596,7 +1833,7 @@ function placeLabels(){
       const ph=Math.round(Math.min(200, Math.max(110, maxH*0.3)));
       if(L.ph!==ph){ L.ph=ph; L.el.style.setProperty("--photo-h", ph+"px"); }
       const nonStory=L.card.offsetHeight-L.story.offsetHeight;
-      const want=Math.max(72, Math.min(Math.floor(innerHeight*0.3), Math.floor(maxH-nonStory)));
+      const want=Math.max(72, Math.min(Math.floor(innerHeight*0.36), Math.floor(maxH-nonStory)));
       if(Math.abs((L.smax||0)-want)>4){ L.smax=want; L.el.style.setProperty("--story-max", want+"px"); }
       const ch=L.card.offsetHeight, xc=Math.max(cw/2+12, Math.min(W-cw/2-12, x)), top=Math.max(topMin, Math.min(y-28-ch, bottomMax-ch));
       L.el.style.setProperty("--sx", (x-xc)+"px"); L.el.style.setProperty("--stem", Math.max(0, y-(top+ch))+"px");
